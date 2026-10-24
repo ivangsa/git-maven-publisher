@@ -17,8 +17,11 @@ package io.github.ivangsa.gitpublisher;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Repository;
@@ -36,6 +39,7 @@ import org.eclipse.jgit.lib.Repository;
  * @param author commit author and committer
  * @param dryRun build the commit but do not push
  * @param nojekyll write an empty {@code .nojekyll} at the root of every published tree (D-043)
+ * @param checksumAlgorithms algorithms of the checksum files; never empty, default SHA-1 and MD5 (D-053)
  */
 public record PublishConfig(
         URI repository,
@@ -46,8 +50,11 @@ public record PublishConfig(
         RetryPolicy retry,
         PersonIdent author,
         boolean dryRun,
-        boolean nojekyll) {
+        boolean nojekyll,
+        Set<ChecksumAlgorithm> checksumAlgorithms) {
 
+    public static final Set<ChecksumAlgorithm> DEFAULT_CHECKSUMS =
+            Collections.unmodifiableSet(EnumSet.of(ChecksumAlgorithm.MD5, ChecksumAlgorithm.SHA1));
     public static final String DEFAULT_BRANCH = "gh-pages";
     public static final String DEFAULT_AUTHOR_NAME = "git-maven-publisher";
     public static final String DEFAULT_AUTHOR_EMAIL = "git-maven-publisher@users.noreply.github.com";
@@ -60,6 +67,11 @@ public record PublishConfig(
         Objects.requireNonNull(retention, "retention");
         Objects.requireNonNull(retry, "retry");
         Objects.requireNonNull(author, "author");
+        Objects.requireNonNull(checksumAlgorithms, "checksumAlgorithms");
+        if (checksumAlgorithms.isEmpty()) {
+            throw new IllegalArgumentException("checksumAlgorithms must not be empty");
+        }
+        checksumAlgorithms = Collections.unmodifiableSet(EnumSet.copyOf(checksumAlgorithms));
         validateRepository(repository);
         if (branch.isBlank()
                 || branch.startsWith("-")
@@ -80,7 +92,8 @@ public record PublishConfig(
                 RetryPolicy.defaults(),
                 defaultAuthor(),
                 false,
-                false);
+                false,
+                DEFAULT_CHECKSUMS);
     }
 
     public static PersonIdent defaultAuthor() {
@@ -94,7 +107,11 @@ public record PublishConfig(
             throw new IllegalArgumentException("repository URL scheme must be https or file, got "
                     + (scheme == null ? "none" : "'" + scheme + "'"));
         }
-        if (repository.getRawUserInfo() != null) {
+        String authority = repository.getRawAuthority();
+        String opaquePart = repository.getRawSchemeSpecificPart();
+        if (repository.getRawUserInfo() != null
+                || (authority != null && authority.indexOf('@') >= 0)
+                || (repository.isOpaque() && opaquePart != null && opaquePart.indexOf('@') >= 0)) {
             throw new IllegalArgumentException(
                     "repository URL must not contain credentials; configure a token instead (serverId, GIT_PUBLISHER_TOKEN)");
         }

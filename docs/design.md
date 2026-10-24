@@ -110,7 +110,9 @@ record PublishConfig(
     URI repository, String branch, Credentials credentials,
     Path workDirectory,                 // contains repo/ (served tree) and git/ (object store)
     RetentionPolicy retention, RetryPolicy retry,
-    PersonIdent author, boolean dryRun) {}
+    PersonIdent author, boolean dryRun,
+    boolean nojekyll,                   // write .nojekyll at the tree root (D-043)
+    Set<ChecksumAlgorithm> checksumAlgorithms) {}   // non-empty; default SHA-1, MD5; passed to Retention and IntegrityCheck (D-053)
 
 sealed interface Credentials { None, Token(String username, char[] token) }
 record RetentionPolicy(int keepSnapshots, int keepVersions) {}

@@ -55,6 +55,24 @@ class MetadataModelTest {
     }
 
     @Test
+    void namespacedMetadataRoundTripsThroughTheOracle() throws Exception {
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<metadata xmlns=\"http://maven.apache.org/METADATA/1.1.0\""
+                + " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\""
+                + " xsi:schemaLocation=\"http://maven.apache.org/METADATA/1.1.0"
+                + " https://maven.apache.org/xsd/repository-metadata-1.1.0.xsd\" modelVersion=\"1.1.0\">"
+                + "<groupId>g</groupId><artifactId>a</artifactId><versioning><versions><version>1</version>"
+                + "</versions></versioning></metadata>";
+        Path in = tmp.resolve("in.xml");
+        Path out = tmp.resolve("out.xml");
+        Files.writeString(in, xml, UTF_8);
+
+        MetadataModel.read(in).write(out);
+
+        assertThat(oracle(out)).isEqualTo(oracle(in));
+    }
+
+    @Test
     void writingIsStableAfterTheFirstWrite() throws Exception {
         for (Path golden : List.of(A_LEVEL, KMP_A_LEVEL, G_LEVEL, V_LEVEL)) {
             byte[] first = MetadataModel.read(golden).toBytes();

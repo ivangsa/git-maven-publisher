@@ -284,6 +284,20 @@ public final class InterleavedPublishScenario {
         }
 
         /**
+         * The contract for disjoint coordinates under a real race (T21, T23): {@link #assertBothPublished} plus the
+         * proof that B published between A's checkout and push, so a publisher that never called
+         * {@link Publication#checkedOut()} cannot pass without a lease failure ever happening.
+         */
+        public Outcome assertInterleavedAndBothPublished(Path workDirectory) {
+            if (!interleaved) {
+                throw new AssertionError(
+                        "the publisher never reached the interleaving point (Publication.checkedOut()), so no lease"
+                                + " failure was forced");
+            }
+            return assertBothPublished(workDirectory);
+        }
+
+        /**
          * The contract for a shared path (outside the merge contract): A fails and the branch is exactly what B
          * published, so nothing of B was overwritten and nothing of A reached the remote.
          */

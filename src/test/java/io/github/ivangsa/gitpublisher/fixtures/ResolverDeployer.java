@@ -30,6 +30,8 @@ import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.deployment.DeployRequest;
 import org.eclipse.aether.deployment.DeploymentException;
+import org.eclipse.aether.metadata.DefaultMetadata;
+import org.eclipse.aether.metadata.Metadata;
 import org.eclipse.aether.repository.RemoteRepository;
 import org.eclipse.aether.supplier.RepositorySystemSupplier;
 import org.eclipse.aether.supplier.SessionBuilderSupplier;
@@ -119,6 +121,27 @@ public final class ResolverDeployer implements AutoCloseable {
             }
             artifacts.forEach(request::addArtifact);
             system.deploy(session, request);
+        } catch (DeploymentException e) {
+            throw new IllegalStateException("Resolver deploy failed: " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Deploys the group-level {@code maven-metadata.xml} a Maven plugin build writes (plugin prefix list), through the
+     * Resolver's metadata upload. The file lists only this plugin: the group-level path is shared by every plugin of
+     * the group, which is exactly what the conflict tests need.
+     */
+    public void deployPluginGroupMetadata(String groupId, String prefix, String pluginArtifactId) {
+        try {
+            Path file = Files.createTempFile(scratch, "group-metadata", ".xml");
+            Files.writeString(
+                    file,
+                    "<metadata><plugins><plugin><name>" + pluginArtifactId + "</name><prefix>" + prefix
+                            + "</prefix><artifactId>" + pluginArtifactId + "</artifactId></plugin></plugins></metadata>");
+            Metadata metadata = new DefaultMetadata(groupId, "", "", "maven-metadata.xml", Metadata.Nature.RELEASE_OR_SNAPSHOT, file.toFile());
+            system.deploy(session, new DeployRequest().setRepository(target).addMetadata(metadata));
         } catch (DeploymentException e) {
             throw new IllegalStateException("Resolver deploy failed: " + e.getMessage(), e);
         } catch (IOException e) {

@@ -370,6 +370,7 @@ Newest last. Format: date · decision · reason · alternatives rejected.
   concurrent publishers on distinct artifacts, negative integrity and leak tests. The sequential reference compares direct Resolver output with output
   transported through Git; it is not described as a repository-manager oracle.
 - **Reason:** Maintainer decision. D-014 already established that a repository manager is not a metadata oracle; the smoke test cost Docker in CI.
+- **Revised by D-043, D-045:** consumers resolve from a `file://` checkout, not a local HTTP server; the leak tests are gone with the scanner.
 - **Rejected:** replacing Reposilite with a fake repository manager (would reproduce our own assumptions).
 
 ## D-039 Review test R08 removed: it specifies renumbering, which D-032 dropped
@@ -462,3 +463,46 @@ Newest last. Format: date · decision · reason · alternatives rejected.
 - **Date:** 2026-10-24
 - **Decision:** `Retention.apply(root, touchedVersionDirectories, RetentionPolicy, checksums)` (package-private) returns the deleted files relative to `root`. A build is found per file name with `<version-without-SNAPSHOT>-<yyyyMMdd.HHmmss>-<n>` followed by `-` or `.`; builds are ordered newest first by `(buildNumber, timestamp)` (D-025). Files without that stamp (plain `lib-1.0-SNAPSHOT.jar`, README) are never touched. Directories not ending in `-SNAPSHOT`, missing, or not listed are ignored. `maven-metadata.xml` is rewritten (and its checksums regenerated for present plus configured algorithms) only when a `<snapshotVersion>` entry was dropped, so untouched metadata stays byte-identical. `<snapshot>` and `lastUpdated` are not changed. `keepVersions` is not part of T16 (Phase 3).
 - **Reason:** Design section 6; Resolver lists only the current file per `(classifier, extension)`, so a classifier last deployed in an old build leaves a dangling entry that must be dropped.
+
+
+## D-052 Metadata XML keeps qualified attribute names (R11)
+- **Date:** 2026-10-24
+- **Decision:** `XmlNode` stores attributes as `prefix:local` (namespace declarations `xmlns`, `xmlns:xsi` and `xsi:schemaLocation` included) and writes them back unchanged. Namespaces are still not interpreted. The T13 tests gain a namespaced round-trip case checked by Maven's strict reader.
+- **Reason:** Review 9150059 F1: reading with the local name dropped the prefix, so retention rewrote valid namespaced metadata into a file Maven rejects. This makes D-048 ("unknown elements and attributes stay where they were") true for prefixed attributes.
+
+## D-054 Registry-based authorities cannot hide credentials (R13)
+- **Date:** 2026-10-24
+- **Decision:** `PublishConfig` rejects a repository URL when `URI.getRawUserInfo()` is set, when the raw authority contains `@` (which `java.net.URI` leaves unparsed for registry-based authorities such as a host with `_`), or when an opaque URI contains `@`. The message still does not echo the URL.
+- **Reason:** Review 9150059 F3: `file://user:secret@my_host/repo.git` passed because `getRawUserInfo()` is null for such authorities.
+
+
+## D-053 Checksum algorithms and nojekyll in PublishConfig (R12)
+- **Date:** 2026-10-24
+- **Decision:** `PublishConfig` gains `Set<ChecksumAlgorithm> checksumAlgorithms` (non-null, non-empty, copied to an unmodifiable `EnumSet`; default SHA-1 and MD5, `PublishConfig.DEFAULT_CHECKSUMS`) as its last component. `nojekyll` was already in the code (D-043, D-047); design section 3 now lists both. `ChecksumAlgorithm` is public (with `parse`, `extension`, `jcaName`) so adapters can map `checksumAlgorithms` / Gradle's algorithms onto it. T20/T21 pass `config.checksumAlgorithms()` to `Retention.apply` and `IntegrityCheck.verify`.
+- **Reason:** Review 9150059 F2/F4: without the configured set in the core config, publish() would have called IntegrityCheck with an empty set and weakened the design section 5 invariant.
+
+## D-055 Checkout shape (T18)
+- **Date:** 2026-10-24
+- **Decision:** `GitPublisher.checkout()` deletes `workDirectory/git` and `workDirectory/repo` only (not the whole work directory, which adapters may share), inits a bare repo in `git/`, asks the remote for its heads (`ls-remote`) and fetches `refs/heads/<branch>` at depth 1 only when it is advertised; a missing branch, or an empty remote, starts with an empty `repo/`. URL and credentials are passed per call, so `git/config` has no `[remote]` section. `TreeMaterializer` refuses symbolic links, submodules and paths that escape `repo/`: a tree that cannot be reproduced would silently lose them on the next parentless commit. Deleting the work directory clears the read-only flag on Windows. `PublishInfo`, `PublishResult`, `Publication` and `PublisherLog` from design section 3 exist now; `publish` throws `UnsupportedOperationException` until T20. Any failure of checkout is a `PublishException` (retry classification of transport and auth errors belongs to T21).
+- **Reason:** Design sections 3, 4 and 8. The `ls-remote` round trip avoids parsing JGit's "Remote does not have ... available" message to detect a missing branch.
+
+## D-056 Change recorder compares Git blob ids (T19)
+- **Date:** 2026-10-24
+- **Decision:** `ChangeRecorder.record(repository, base, directory)` hashes each regular file as a Git blob (no symlink following) and compares it with the blob ids of the base commit's tree; the result separates `added` and `modified`, each with the file bytes, because the bytes are the "ours" side of the overlay replay and retention rewrites files afterwards. Files removed by the deploy are not reported (retention reports its own deletions). Empty directories are ignored (Git stores none, D-031).
+- **Reason:** Design section 4 step 3.i and section 7. Blob ids need no extra object writes and agree with what the commit will contain. Holding the bytes in memory is acceptable under the size limits of design section 10.
+
+## D-057 Commit and single push attempt (T20)
+- **Date:** 2026-10-24
+- **Decision:** `GitPublication.publish` runs `ChangeRecorder`, `Retention` (on every `-SNAPSHOT` directory that holds an added or modified path, with `config.checksumAlgorithms()`), `IntegrityCheck.verify`, then `TreeCommitter` (blobs, tree and a parentless commit from `repo/`, author and committer from `config.author()` with the current time, regular-file mode only) and one `GitRemote.push`. `push` uses `Transport.push` with two `RemoteRefUpdate`s: the branch, forced, with the lease (`zeroId` when the branch was missing), and `refs/publisher/tree`, forced, no lease, status ignored (D-020, D-027). It returns `PushOutcome.Pushed` (OK or UP_TO_DATE) or `PushOutcome.LeaseFailed` (`REJECTED_REMOTE_CHANGED`); any other status is an `IOException`. T20 turns a lease failure into a `PublishException` ("changed on the remote ... nothing was pushed"); T21 will loop on the outcome instead. Commit message: `Publish <coords joined by ", ">` (`Publish changes` when there are none), then a blank line and `source: <sha>` only when the source commit is known. Dry run builds the commit, reports `pushed=false` and `attempts=0`. `PublishResult.changedPaths` is the recorded added/modified set before retention; `deletedPaths` is what retention removed.
+- **Reason:** Design section 4 steps 3.i to 3.vi. A sealed outcome keeps lease failure a value for the retry loop while the single-attempt behavior stays simple.
+
+
+## D-058 Retry loop and overlay replay (T21)
+- **Date:** 2026-10-24
+- **Decision:** `GitPublication.publish` records `ours` once (before retention), then loops up to `RetryPolicy.maxAttempts`. From the second attempt on it fetches the tip again, deletes `repo/`, and `OverlayReplay` materializes the new tip and lays `ours` over it with design section 7's rule per path (base = `expectedSha` of the attempt that failed; remote unchanged -> write ours; remote has the same bytes -> keep; otherwise conflict). `expectedSha` then becomes the new tip, so the next replay compares against it. Retention, checksums, `IntegrityCheck` and the commit run again on every attempt. A lease failure and any transport `IOException` are retried with full-jitter back-off (`random(0, min(maxDelay, baseDelay * 2^(attempt-1)))`, warn log line per retry). Fatal, no retry: a `TransportException` whose message says unauthorized/forbidden/authentication/401/403, and `NoRemoteRepositoryException` (a missing repository does not appear by waiting). A conflict is thrown by the replay as `PublishException` listing every path and the serialization hint; the first failed attempt (the lease failure) is the only one before it. The conflict message is already in place for T21b, which adds its own tests. Exhausted budget: `PublishException` "after N attempts: <last reason>; nothing was pushed". `GitRemote` is non-final and `GitPublication.remotes` is a package-private test seam so tests can inject real JGit exceptions (captured from a Jetty server answering 401/503) into the loop; `PublishConfig` allows only https/file, so the loop cannot yet be driven over HTTP (T24).
+- **Reason:** Design sections 4 and 7. Auth detection by message is the only handle JGit gives for HTTP 401/403; the tests use the exceptions JGit really throws. The T20 stale-lease tests now use a one-attempt budget, since with the default budget they publish via replay.
+
+## D-059 Conflict detection tests (T21b)
+- **Date:** 2026-10-24
+- **Decision:** The conflict rule was already implemented by `OverlayReplay` (D-058); T21b adds `GitPublisherConflictTest`, which drives it with the interleaved scenario and real Resolver deploys: different versions of one `groupId:artifactId`, the same snapshot version, and two Maven plugins of one group. `ResolverDeployer.deployPluginGroupMetadata` uploads a group-level `maven-metadata.xml` through the Resolver's metadata upload (Resolver itself does not generate plugin prefix metadata; Maven core does), listing only the deploying plugin. Same-snapshot assertion names the `1.0-SNAPSHOT/` directory because two builds in one second collide on the build-1 files, in another second on the version metadata.
+- **Reason:** Design section 7; the tests show the failed publication leaves the remote tree equal to what the winner pushed, with one commit and no token in the message.

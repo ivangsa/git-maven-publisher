@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Review 2026-10-24-9150059 FIX FIRST: R11–R14 open (before B07) · Last finished: T16 (B06) · Next: R11–R14, then B07 (T18, T19)
+**Status:** Last finished: T21b (B10) · Next: B11 (T23, T24)
 
 ## Batches
 
@@ -24,10 +24,11 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | B04 | T12, T13, T14, T17 | implementer | core | | done |
 | ~~B05~~ | ~~T15~~ removed (D-032) | - | - | | removed |
 | B06 | T16 (retention) | implementer | core | yes (plan revision + retention) | done |
-| B07 | T18, T19 | implementer | core | | todo |
-| B08 | T20 (lease) | implementer | core | | todo |
-| B09 | T21 (retry + independent replay) | implementer | core | | todo |
-| B10 | T21b (conflict detection) | implementer | core | yes (lease + retry + replay + conflicts) | todo |
+| BR5 | R11, R12, R13, R14 | implementer | core, testing | | done |
+| B07 | T18, T19 | implementer | core | | done |
+| B08 | T20 (lease) | implementer | core | | done |
+| B09 | T21 (retry + independent replay) | implementer | core | | done |
+| B10 | T21b (conflict detection) | implementer | core | yes (lease + retry + replay + conflicts) | done |
 | B11 | T23, T24 (T22 dropped, D-044) | implementer | core, testing | | todo |
 | B12 | T25, T26, T27, T28 | implementer | maven-plugin | | todo |
 | B13 | T29, T30, T31 | mechanic | maven-plugin | yes (end of Phase 1 code) | todo |
@@ -130,19 +131,19 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T17 Integrity check
   Production `IntegrityCheck` (design §5 invariants).
   Done when: agrees with `MetadataAssertions` on all harness valid/broken trees.
-- [ ] T18 Checkout
+- [x] T18 Checkout
   `GitPublisher.checkout()`: shallow fetch into `git/`, materialize into `repo/`, `.nojekyll` only when enabled, empty start when branch missing.
   Done when: tests against `BareRepo` with and without branch, with `nojekyll` on and off; no remote URL in `git/config`.
-- [ ] T19 Change recorder
+- [x] T19 Change recorder
   Diff `repo/` against `expectedSha` tree → added/modified paths.
   Done when: unit tests for add, modify, unchanged, nested paths, empty base.
-- [ ] T20 Commit and push with lease (single attempt)
+- [x] T20 Commit and push with lease (single attempt)
   Parentless commit from `repo/`, message format, forced push with expected old id. Also moves `refs/publisher/tree` in the same push, without a lease on it (D-020, D-027).
   Done when: after N publishes the branch has exactly 1 commit; stale lease returns a lease-failure result; the second and later pushes send only the new objects. The branch exists without `refs/publisher/tree` (created by hand): the publish succeeds in one attempt and creates the tree ref. A rejected tree ref never fails or retries a publish (D-027).
-- [ ] T21 Retry loop with independent replay
+- [x] T21 Retry loop with independent replay
   Back-off with jitter; on lease failure re-fetch, re-materialize, copy `ours` for paths the remote did not change, keep paths the remote changed to identical bytes, then retention and integrity again (design §7). Transport errors retried, auth failures fail fast.
   Done when: a competing push on disjoint coordinates between checkout and push ends with both publications present and valid; two first publications on a missing branch both succeed (identical `.nojekyll`); budget exhaustion raises `PublishException`; an auth failure makes exactly one attempt.
-- [ ] T21b Conflict detection and diagnostics
+- [x] T21b Conflict detection and diagnostics
   A path changed on both sides with different content, or changed by us and deleted by the remote, is a conflict (design §7): `PublishException`, no retry, nothing pushed. The message lists every conflicting path and the external-serialization hint.
   Done when: competing publications of the same `groupId:artifactId` (different versions, and the same snapshot version) end with one published and the other failing with that diagnostic; the remote tree is unchanged by the failed one; two Maven plugins in one groupId touching G-level metadata conflict the same way; no token or URL userinfo in the message.
 - ~~T22 Concurrency IT~~ dropped (D-044): the deterministic interleaving tests of T21, T21b and T23 cover the race; no N-thread stress test.
@@ -228,7 +229,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
   Done when: tests drop oldest snapshot versions per `groupId:artifactId` and A-level metadata passes `MetadataAssertions`.
 - [ ] T48 Release-aware cleanup
   Drop a `-SNAPSHOT` version once the release exists on a configurable release repo (default Central).
-  Done when: IT against a `PagesServer`-hosted fake release repo.
+  Done when: IT against a fake release repo served from a `file://` directory (`PagesServer` was removed, D-043).
 - [ ] T49 verify goal and task
   Checks branch exists, single commit, `.nojekyll` present when `nojekyll` is enabled, no LFS pointers. Optional: a user-given consumer URL serves metadata.
   Done when: IT passes on a good setup and reports each failure on crafted bad setups.
@@ -283,15 +284,15 @@ From [review 2026-10-24-32f382a](reviews/2026-10-24-32f382a.md) (Phase 0 revalid
 From [review 2026-10-24-9150059](reviews/2026-10-24-9150059.md) (plan revision + retention, verdict FIX FIRST). All before B07.
 Review tests live in `src/test/java/io/github/ivangsa/gitpublisher/review/` (R11 is in the core package because the classes under test are package-private).
 
-- [ ] R11 Keep prefixed attribute names when rewriting metadata (major, F1)
+- [x] R11 Keep prefixed attribute names when rewriting metadata (major, F1)
   `XmlNode` must write back qualified attribute names and namespace declarations; a namespaced round-trip case in the T13 tests.
   Done when: `R11NamespacedMetadataRewriteTest` passes.
-- [ ] R12 Checksum algorithms and `nojekyll` in the core config; document fixes (major, F2, F4)
+- [x] R12 Checksum algorithms and `nojekyll` in the core config; document fixes (major, F2, F4)
   Design §3 and a decision: `PublishConfig` carries the configured checksum algorithms (non-empty, default SHA-1, MD5) and `nojekyll`;
   T20/T21 pass them to `Retention` and `IntegrityCheck`. Fix T48 (`PagesServer`), mark D-038 "Revised by D-043, D-045".
   Done when: unit tests for the default and the validation; design, decisions and tasks updated.
-- [ ] R13 Reject credentials in registry-based URL authorities (minor, F3)
+- [x] R13 Reject credentials in registry-based URL authorities (minor, F3)
   Done when: `R13RegistryAuthorityUserInfoTest` passes and the existing `PublishConfigTest` cases still pass.
-- [ ] R14 Interleaving harness: require the interleaving for "both published" (minor, F5)
+- [x] R14 Interleaving harness: require the interleaving for "both published" (minor, F5)
   An assertion that fails when the publisher never reached `Publication.checkedOut()`, used by the T21/T23 tests; the lock reference keeps its path.
   Done when: a self-test shows a non-interleaving publisher fails the new assertion and `replayOrFail` passes it.

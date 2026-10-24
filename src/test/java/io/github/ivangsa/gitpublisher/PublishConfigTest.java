@@ -21,6 +21,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.HashSet;
+import java.util.Set;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.junit.jupiter.api.Test;
 
@@ -43,6 +45,35 @@ class PublishConfigTest {
         assertThat(config.author().getEmailAddress()).isEqualTo("git-maven-publisher@users.noreply.github.com");
         assertThat(config.dryRun()).isFalse();
         assertThat(config.nojekyll()).isFalse();
+        assertThat(config.checksumAlgorithms())
+                .containsExactlyInAnyOrder(ChecksumAlgorithm.SHA1, ChecksumAlgorithm.MD5);
+    }
+
+    @Test
+    void checksumAlgorithmsAreValidatedAndCopied() {
+        PublishConfig base = PublishConfig.of(HTTPS, WORK);
+        assertThatThrownBy(() -> withChecksums(base, Set.of())).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> withChecksums(base, null)).isInstanceOf(NullPointerException.class);
+        Set<ChecksumAlgorithm> mutable = new HashSet<>(Set.of(ChecksumAlgorithm.SHA512));
+        PublishConfig config = withChecksums(base, mutable);
+        mutable.add(ChecksumAlgorithm.MD5);
+        assertThat(config.checksumAlgorithms()).containsExactly(ChecksumAlgorithm.SHA512);
+        assertThatThrownBy(() -> config.checksumAlgorithms().add(ChecksumAlgorithm.MD5))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    private static PublishConfig withChecksums(PublishConfig c, Set<ChecksumAlgorithm> algorithms) {
+        return new PublishConfig(
+                c.repository(),
+                c.branch(),
+                c.credentials(),
+                c.workDirectory(),
+                c.retention(),
+                c.retry(),
+                c.author(),
+                c.dryRun(),
+                c.nojekyll(),
+                algorithms);
     }
 
     @Test
@@ -113,7 +144,8 @@ class PublishConfigTest {
                 c.retry(),
                 c.author(),
                 c.dryRun(),
-                c.nojekyll());
+                c.nojekyll(),
+                c.checksumAlgorithms());
     }
 
     @Test
@@ -128,7 +160,8 @@ class PublishConfigTest {
                 base.retry(),
                 new PersonIdent("Bot", "bot@example.org"),
                 true,
-                true);
+                true,
+                Set.of(ChecksumAlgorithm.SHA256));
         assertThat(config.nojekyll()).isTrue();
         assertThat(config.dryRun()).isTrue();
         assertThat(config.author().getName()).isEqualTo("Bot");
@@ -176,7 +209,8 @@ class PublishConfigTest {
                 RetryPolicy.defaults(),
                 PublishConfig.defaultAuthor(),
                 false,
-                false);
+                false,
+                PublishConfig.DEFAULT_CHECKSUMS);
         assertThat(withToken.toString()).doesNotContain("s3cr3t");
     }
 

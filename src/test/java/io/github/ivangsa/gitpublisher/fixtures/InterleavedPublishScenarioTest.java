@@ -77,12 +77,25 @@ class InterleavedPublishScenarioTest {
     }
 
     @Test
+    void nonInterleavingPublisherFailsTheInterleavedAssertionButPassesTheLockPath() {
+        try (BareRepo bare = BareRepo.create(tmp.resolve("remote.git"))) {
+            var outcome = scenario(bare, ALPHA, BETA).run(ReferencePublishers.globalLock());
+
+            assertThat(outcome.interleaved()).isFalse();
+            outcome.assertBothPublished(tmp.resolve("lock"));
+            assertThatThrownBy(() -> outcome.assertInterleavedAndBothPublished(tmp.resolve("interleaved")))
+                    .isInstanceOf(AssertionError.class)
+                    .hasMessageContaining("interleaving point");
+        }
+    }
+
+    @Test
     void replayingPublisherKeepsBothPublicationsWhenInterleaved() {
         try (BareRepo bare = BareRepo.create(tmp.resolve("remote.git"))) {
             var outcome = scenario(bare, ALPHA, BETA).run(ReferencePublishers.replayOrFail());
 
             assertThat(outcome.interleaved()).isTrue();
-            outcome.assertBothPublished(tmp.resolve("check"));
+            outcome.assertInterleavedAndBothPublished(tmp.resolve("check"));
             assertThat(bare.readTree(BRANCH).keySet())
                     .anyMatch(p -> p.startsWith("org/acme/alpha/"))
                     .anyMatch(p -> p.startsWith("org/acme/beta/"));

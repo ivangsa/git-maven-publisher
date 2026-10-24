@@ -20,7 +20,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 /** Checksum algorithms of a Maven repository: file extension and JCA name. */
-enum ChecksumAlgorithm {
+public enum ChecksumAlgorithm {
     MD5("md5", "MD5"),
     SHA1("sha1", "SHA-1"),
     SHA256("sha256", "SHA-256"),
@@ -35,17 +35,17 @@ enum ChecksumAlgorithm {
     }
 
     /** File extension without the dot, for example {@code sha1}. */
-    String extension() {
+    public String extension() {
         return extension;
     }
 
     /** Name for {@link java.security.MessageDigest}, for example {@code SHA-1}. */
-    String jcaName() {
+    public String jcaName() {
         return jcaName;
     }
 
     /** Accepts Resolver names ({@code SHA-1}), extensions ({@code sha1}) and any letter case. */
-    static Optional<ChecksumAlgorithm> parse(String name) {
+    public static Optional<ChecksumAlgorithm> parse(String name) {
         String normalized = name.trim().toLowerCase(Locale.ROOT).replace("-", "");
         return fromExtension(normalized);
     }

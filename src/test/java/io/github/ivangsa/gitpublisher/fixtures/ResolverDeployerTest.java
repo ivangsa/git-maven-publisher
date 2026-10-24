@@ -69,6 +69,16 @@ class ResolverDeployerTest {
     }
 
     @Test
+    void pluginGroupMetadataIsWrittenAtTheGroupLevelWithChecksums() throws Exception {
+        try (ResolverDeployer deployer = new ResolverDeployer(repo)) {
+            deployer.deployPluginGroupMetadata("org.acme", "alpha", "alpha-maven-plugin");
+        }
+        Path file = repo.resolve("org/acme/maven-metadata.xml");
+        assertThat(Files.readString(file)).contains("<prefix>alpha</prefix>", "alpha-maven-plugin");
+        assertThat(repo.resolve("org/acme/maven-metadata.xml.sha1")).exists();
+    }
+
+    @Test
     void classifierAndGradleModuleArtifactsAreDeployed() throws Exception {
         try (ResolverDeployer deployer = new ResolverDeployer(repo)) {
             deployer.deploy(

@@ -122,7 +122,11 @@ final class XmlNode {
                     case XMLStreamConstants.START_ELEMENT -> {
                         XmlNode node = new XmlNode(reader.getLocalName());
                         for (int i = 0; i < reader.getAttributeCount(); i++) {
-                            node.attributes.put(reader.getAttributeLocalName(i), reader.getAttributeValue(i));
+                            String prefix = reader.getAttributePrefix(i);
+                            String local = reader.getAttributeLocalName(i);
+                            node.attributes.put(
+                                    prefix == null || prefix.isEmpty() ? local : prefix + ":" + local,
+                                    reader.getAttributeValue(i));
                         }
                         if (stack.isEmpty()) {
                             if (root != null) {
