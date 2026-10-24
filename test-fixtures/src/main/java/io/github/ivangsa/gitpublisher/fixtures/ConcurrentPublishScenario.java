@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -51,9 +53,26 @@ public final class ConcurrentPublishScenario {
 
     /** What a publisher receives for one publication. */
     public record Publication(
-            SequentialReference.Step step, BareRepo remote, String branch, Path workDirectory, DeployAction deploy) {}
+            SequentialReference.Step step,
+            BareRepo remote,
+            String branch,
+            Path workDirectory,
+            DeployAction deploy,
+            Runnable onPushed) {
 
-    /** The publisher under test. It must run {@code deploy} exactly once and make the result appear on the branch. */
+        /**
+         * The publisher calls this right after its push updated the branch. The order of these calls is the order the
+         * sequential reference replays: with the metadata rules, {@code <versions>} follow push order, not deploy order.
+         */
+        public void pushed() {
+            onPushed.run();
+        }
+    }
+
+    /**
+     * The publisher under test. It must run {@code deploy} exactly once, make the result appear on the branch and call
+     * {@link Publication#pushed()} right after its successful push.
+     */
     @FunctionalInterface
     public interface Publisher {
         void publish(Publication publication) throws Exception;
@@ -64,16 +83,60 @@ public final class ConcurrentPublishScenario {
     private final Path workRoot;
     private final List<SequentialReference.Step> steps;
 
-    private final Map<String, byte[]> deployedFiles = Collections.synchronizedMap(new TreeMap<>());
+    private final Supplier<Instant> sessionClock;
+
+    /** Every file a deploy wrote, with its content. The same path can appear twice when two publications collide. */
+    private final List<Map.Entry<String, byte[]>> deployedFiles = Collections.synchronizedList(new ArrayList<>());
+
     private final List<SequentialReference.Step> deployOrder = Collections.synchronizedList(new ArrayList<>());
+    private final List<SequentialReference.Step> pushOrder = Collections.synchronizedList(new ArrayList<>());
 
     /** One thread per step. */
     public ConcurrentPublishScenario(
             BareRepo remote, String branch, Path workRoot, List<SequentialReference.Step> steps) {
+        this(remote, branch, workRoot, steps, Instant::now);
+    }
+
+    /**
+     * One thread per step; {@code sessionClock} gives each publication its Maven session start (tests fix it to force
+     * identical timestamps). Steps without explicit parts get content that is unique per publication, so two
+     * publications of equal coordinates never produce byte-identical files (review F4).
+     */
+    public ConcurrentPublishScenario(
+            BareRepo remote,
+            String branch,
+            Path workRoot,
+            List<SequentialReference.Step> steps,
+            Supplier<Instant> sessionClock) {
         this.remote = remote;
         this.branch = branch;
         this.workRoot = workRoot;
-        this.steps = List.copyOf(steps);
+        this.steps = uniqueContent(steps);
+        this.sessionClock = sessionClock;
+    }
+
+    private static List<SequentialReference.Step> uniqueContent(List<SequentialReference.Step> steps) {
+        List<SequentialReference.Step> result = new ArrayList<>();
+        for (int i = 0; i < steps.size(); i++) {
+            SequentialReference.Step step = steps.get(i);
+            if (!step.parts().isEmpty()) {
+                result.add(step);
+                continue;
+            }
+            String id = step.coordinates() + " publication #" + i;
+            result.add(SequentialReference.Step.of(
+                    step.groupId(),
+                    step.artifactId(),
+                    step.version(),
+                    ResolverDeployer.Part.of("", "jar", "jar of " + id),
+                    ResolverDeployer.Part.of(
+                            "",
+                            "pom",
+                            ResolverDeployer.pom(step.groupId(), step.artifactId(), step.version()) + "<!-- " + id
+                                    + " -->"),
+                    ResolverDeployer.Part.of("sources", "jar", "sources of " + id)));
+        }
+        return List.copyOf(result);
     }
 
     /**
@@ -106,7 +169,15 @@ public final class ConcurrentPublishScenario {
             futures.add(pool.submit(() -> {
                 try {
                     start.await(60, TimeUnit.SECONDS);
-                    publisher.publish(new Publication(step, remote, branch, work, dir -> deploy(step, dir)));
+                    // Like Maven: the session start time is taken before checkout and stamps the snapshots later.
+                    Instant sessionStart = sessionClock.get();
+                    publisher.publish(new Publication(
+                            step,
+                            remote,
+                            branch,
+                            work,
+                            dir -> deploy(step, dir, sessionStart),
+                            () -> pushOrder.add(step)));
                 } catch (Throwable t) {
                     errors.add(t);
                 }
@@ -124,16 +195,16 @@ public final class ConcurrentPublishScenario {
         return new Outcome(List.copyOf(errors));
     }
 
-    private void deploy(SequentialReference.Step step, Path directory) {
+    private void deploy(SequentialReference.Step step, Path directory, Instant sessionStart) {
         Map<String, byte[]> before = ReferencePublishers.readFiles(directory);
-        try (ResolverDeployer deployer = new ResolverDeployer(directory)) {
+        try (ResolverDeployer deployer = new ResolverDeployer(directory, sessionStart)) {
             SequentialReference.apply(deployer, step);
         }
         Map<String, byte[]> after = ReferencePublishers.readFiles(directory);
         after.forEach((path, content) -> {
             boolean metadata = path.substring(path.lastIndexOf('/') + 1).startsWith("maven-metadata.xml");
             if (!metadata && !(before.containsKey(path) && Arrays.equals(before.get(path), content))) {
-                deployedFiles.put(path, content);
+                deployedFiles.add(Map.entry(path, content));
             }
         });
         deployOrder.add(step);
@@ -152,10 +223,17 @@ public final class ConcurrentPublishScenario {
             return errors;
         }
 
-        /** Steps in the order their native deploys completed (the order a sequential run must replay). */
+        /** Steps in the order their native deploys completed (informational; the reference replays the push order). */
         public List<SequentialReference.Step> deployOrder() {
             synchronized (deployOrder) {
                 return List.copyOf(deployOrder);
+            }
+        }
+
+        /** Steps in the order their pushes updated the branch, as reported through {@link Publication#pushed()}. */
+        public List<SequentialReference.Step> pushOrder() {
+            synchronized (pushOrder) {
+                return List.copyOf(pushOrder);
             }
         }
 
@@ -164,9 +242,9 @@ public final class ConcurrentPublishScenario {
             Map<String, byte[]> tree = remote.readTree(branch);
             List<String> lost = new ArrayList<>();
             synchronized (deployedFiles) {
-                deployedFiles.forEach((path, content) -> {
-                    if (!tree.containsKey(path) || !Arrays.equals(tree.get(path), content)) {
-                        lost.add(path);
+                deployedFiles.forEach(file -> {
+                    if (!tree.containsKey(file.getKey()) || !Arrays.equals(tree.get(file.getKey()), file.getValue())) {
+                        lost.add(file.getKey());
                     }
                 });
             }
@@ -202,10 +280,15 @@ public final class ConcurrentPublishScenario {
             return tree;
         }
 
-        /** Checks out the branch and compares it with the sequential replay of {@link #deployOrder()}. */
+        /** Checks out the branch and compares it with the sequential replay of {@link #pushOrder()}. */
         public Outcome assertMatchesSequentialReference(Path checkoutDirectory, Path referenceDirectory) {
+            List<SequentialReference.Step> pushed = pushOrder();
+            if (pushed.size() != steps.size()) {
+                throw new AssertionError("expected " + steps.size() + " calls of Publication.pushed() but got "
+                        + pushed.size() + ": the publisher must report each successful push");
+            }
             Path actual = remote.checkout(branch, checkoutDirectory);
-            Path expected = SequentialReference.replay(referenceDirectory, deployOrder());
+            Path expected = SequentialReference.replay(referenceDirectory, pushed);
             TreeDiff.compare(expected, actual).assertNoDifference();
             return this;
         }

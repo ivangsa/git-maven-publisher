@@ -102,24 +102,28 @@
       <id>e2e</id>
       <build>
         <plugins>
+          <!-- Separate execution: the default execution keeps running every *IT; this one only adds *E2E (R05/F8). -->
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-failsafe-plugin</artifactId>
-            <configuration>
-              <includes>
-                <include>**/*E2E.java</include>
-              </includes>
-              <failIfNoTests>true</failIfNoTests>
-              <systemPropertyVariables>
-                <maven.home>${maven.home}</maven.home>
-              </systemPropertyVariables>
-            </configuration>
             <executions>
               <execution>
+                <id>e2e</id>
                 <goals>
                   <goal>integration-test</goal>
                   <goal>verify</goal>
                 </goals>
+                <configuration>
+                  <includes>
+                    <include>**/*E2E.java</include>
+                  </includes>
+                  <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
+                  <reportsDirectory>${project.build.directory}/failsafe-reports-e2e</reportsDirectory>
+                  <summaryFile>${project.build.directory}/failsafe-reports-e2e/failsafe-summary.xml</summaryFile>
+                  <systemPropertyVariables>
+                    <maven.home>${maven.home}</maven.home>
+                  </systemPropertyVariables>
+                </configuration>
               </execution>
             </executions>
           </plugin>

@@ -18,9 +18,11 @@ package io.github.ivangsa.gitpublisher.fixtures;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -34,21 +36,44 @@ public final class LeakScanner {
     private static final String REDACTED = "<redacted>";
 
     private final String canary;
-    private final byte[] canaryBytes;
+    private final List<Needle> needles = new ArrayList<>();
+
+    private record Needle(String form, byte[] bytes) {}
 
     public LeakScanner(String canary) {
         if (canary == null || canary.isBlank()) {
             throw new IllegalArgumentException("canary must not be blank");
         }
         this.canary = canary;
-        this.canaryBytes = canary.getBytes(UTF_8);
+        byte[] raw = canary.getBytes(UTF_8);
+        needles.add(new Needle("canary", raw));
+        needles.add(new Needle("URL-encoded canary", URLEncoder.encode(canary, UTF_8).getBytes(UTF_8)));
+        // Base64 of the canary inside a longer value (for example HTTP basic auth "user:canary"):
+        // the encoding depends on the offset modulo 3, so look for the stable middle of all three alignments.
+        for (int offset = 0; offset < 3; offset++) {
+            byte[] shifted = new byte[offset + raw.length];
+            java.util.Arrays.fill(shifted, 0, offset, (byte) 'x');
+            System.arraycopy(raw, 0, shifted, offset, raw.length);
+            addBase64(Base64.getEncoder().encodeToString(shifted), offset);
+            addBase64(Base64.getUrlEncoder().encodeToString(shifted), offset);
+        }
+    }
+
+    private void addBase64(String encoded, int offset) {
+        String stable = encoded.replace("=", "");
+        int from = offset == 0 ? 0 : 4;
+        int to = stable.length() - 4;
+        if (to > from) {
+            needles.add(new Needle("Base64 canary", stable.substring(from, to).getBytes(UTF_8)));
+        }
     }
 
     /** Scans captured text (for example a build log). {@code source} names the text in findings. */
     public List<String> scanText(String source, String text) {
         List<String> findings = new ArrayList<>();
-        if (text.contains(canary)) {
-            findings.add("canary found in " + redact(source));
+        String form = leakedForm(text.getBytes(UTF_8));
+        if (form != null) {
+            findings.add(form + " found in " + redact(source));
         }
         return findings;
     }
@@ -62,11 +87,13 @@ public final class LeakScanner {
                     continue;
                 }
                 String relative = relative(root, entry);
-                if (entry.getFileName().toString().contains(canary)) {
-                    findings.add("canary found in the name of " + redact(relative));
+                String nameForm = leakedForm(entry.getFileName().toString().getBytes(UTF_8));
+                if (nameForm != null) {
+                    findings.add(nameForm + " found in the name of " + redact(relative));
                 }
-                if (Files.isRegularFile(entry) && containsCanary(Files.readAllBytes(entry))) {
-                    findings.add("canary found in content of " + redact(relative));
+                String contentForm = Files.isRegularFile(entry) ? leakedForm(Files.readAllBytes(entry)) : null;
+                if (contentForm != null) {
+                    findings.add(contentForm + " found in content of " + redact(relative));
                 }
             }
         }
@@ -81,8 +108,9 @@ public final class LeakScanner {
         List<String> findings = new ArrayList<>();
         try (Stream<Path> entries = Files.walk(root)) {
             for (Path config : entries.filter(Files::isRegularFile).filter(LeakScanner::isGitConfig).sorted().toList()) {
-                if (containsCanary(Files.readAllBytes(config))) {
-                    findings.add("canary found in git config " + redact(relative(root, config)));
+                String form = leakedForm(Files.readAllBytes(config));
+                if (form != null) {
+                    findings.add(form + " found in git config " + redact(relative(root, config)));
                 }
             }
         }
@@ -103,11 +131,21 @@ public final class LeakScanner {
         return Files.isRegularFile(directory.resolve("HEAD")) && Files.isDirectory(directory.resolve("objects"));
     }
 
-    private boolean containsCanary(byte[] content) {
+    /** Returns the label of the first leaked form of the canary in {@code content}, or null. */
+    private String leakedForm(byte[] content) {
+        for (Needle needle : needles) {
+            if (contains(content, needle.bytes())) {
+                return needle.form();
+            }
+        }
+        return null;
+    }
+
+    private static boolean contains(byte[] content, byte[] needle) {
         outer:
-        for (int i = 0; i + canaryBytes.length <= content.length; i++) {
-            for (int j = 0; j < canaryBytes.length; j++) {
-                if (content[i + j] != canaryBytes[j]) {
+        for (int i = 0; i + needle.length <= content.length; i++) {
+            for (int j = 0; j < needle.length; j++) {
+                if (content[i + j] != needle[j]) {
                     continue outer;
                 }
             }

@@ -67,11 +67,14 @@ public final class TreeNormalizer {
 
     private static String content(Path file, String name, Map<String, Integer> builds) throws IOException {
         byte[] bytes = Files.readAllBytes(file);
-        if (name.startsWith("maven-metadata.xml.")) {
+        if (name.startsWith("maven-metadata.xml.") || name.matches(".*\\.module\\.(md5|sha1|sha256|sha512)")) {
             return CHECKSUM_PLACEHOLDER;
         }
         if (name.equals("maven-metadata.xml")) {
             return normalizeMetadata(new String(bytes, StandardCharsets.UTF_8), builds);
+        }
+        if (name.endsWith(".module")) {
+            return normalizeText(new String(bytes, StandardCharsets.UTF_8).replace("\r\n", "\n"), builds);
         }
         return new String(bytes, StandardCharsets.ISO_8859_1);
     }
@@ -115,7 +118,7 @@ public final class TreeNormalizer {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        found.sort(Comparator.comparing(Build::timestamp).thenComparingInt(Build::number));
+        found.sort(Comparator.comparingInt(Build::number).thenComparing(Build::timestamp));
         Map<String, Integer> result = new HashMap<>();
         for (int i = 0; i < found.size(); i++) {
             result.put(found.get(i).timestamp() + "-" + found.get(i).number(), i + 1);

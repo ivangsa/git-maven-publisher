@@ -35,10 +35,11 @@ jobs:
       - name: Fail if the e2e profile executed zero tests
         run: |
           total=0
-          for f in test-fixtures/target/failsafe-reports/TEST-*E2E.xml; do
+          for f in test-fixtures/target/failsafe-reports-e2e/TEST-*E2E.xml; do
             [ -e "$f" ] || continue
-            n=$(grep -o 'tests="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
-            total=$((total + n))
+            n=$(grep -o ' tests="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+            s=$(grep -o ' skipped="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+            total=$((total + n - s))
           done
-          echo "E2E tests executed: $total"
+          echo "E2E tests executed (tests - skipped): $total"
           [ "$total" -gt 0 ]

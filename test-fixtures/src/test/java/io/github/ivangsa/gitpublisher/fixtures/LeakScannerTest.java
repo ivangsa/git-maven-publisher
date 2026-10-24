@@ -131,6 +131,45 @@ class LeakScannerTest {
         assertThat(scanner.scanTree(root)).hasSize(1);
     }
 
+    @Test
+    void base64CanaryAtEveryAlignmentIsDetectedWithoutEchoingIt() {
+        for (String prefix : new String[] {"", "a:", "ab:", "x-access-token:"}) {
+            String encoded = java.util.Base64.getEncoder()
+                    .encodeToString((prefix + CANARY + ":tail").getBytes(StandardCharsets.UTF_8));
+            List<String> findings = scanner.scanText("wire log", "Authorization: Basic " + encoded);
+
+            assertThat(findings).as("prefix '%s'", prefix).hasSize(1);
+            assertThat(findings.get(0)).doesNotContain(CANARY).doesNotContain(encoded);
+        }
+    }
+
+    @Test
+    void urlEncodedCanaryIsDetected() {
+        String token = "gmp+canary/5e1f==";
+        LeakScanner other = new LeakScanner(token);
+
+        assertThat(other.scanText("url", "https://u:" + java.net.URLEncoder.encode(token, StandardCharsets.UTF_8) + "@h"))
+                .hasSize(1);
+    }
+
+    @Test
+    void encodedCanaryInTreeAndGitConfigIsDetected(@TempDir Path root) throws IOException {
+        String basic = java.util.Base64.getEncoder()
+                .encodeToString(("x-access-token:" + CANARY).getBytes(StandardCharsets.UTF_8));
+        write(root.resolve("repo/log.txt"), "Authorization: Basic " + basic);
+        write(root.resolve("work/.git/config"), "[http]\n\textraHeader = Authorization: Basic " + basic + "\n");
+
+        assertThat(scanner.scanTree(root)).hasSize(2);
+        assertThat(scanner.scanGitConfig(root)).hasSize(1);
+    }
+
+    @Test
+    void unrelatedBase64IsNotAFinding() {
+        String other = java.util.Base64.getEncoder().encodeToString("x-access-token:something-else".getBytes(StandardCharsets.UTF_8));
+
+        assertThat(scanner.scanText("log", "Authorization: Basic " + other)).isEmpty();
+    }
+
     private static void write(Path file, String content) throws IOException {
         Files.createDirectories(file.getParent());
         Files.writeString(file, content, StandardCharsets.UTF_8);

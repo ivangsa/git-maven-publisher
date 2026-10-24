@@ -21,7 +21,9 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
@@ -37,6 +39,8 @@ import org.eclipse.aether.supplier.SessionBuilderSupplier;
  * Deploys artifacts with the real Maven Resolver ({@code maven-resolver-supplier-mvn3}, the same engine as
  * {@code mvn deploy}) to a {@code file://} directory. The resulting tree and metadata are what native tools produce,
  * which makes this the "native deploy" oracle of docs/design.md section 9.
+ *
+ * <p>One deployer is one Maven session: every snapshot it deploys carries the same timestamp (the session start).
  */
 public final class ResolverDeployer implements AutoCloseable {
 
@@ -58,7 +62,16 @@ public final class ResolverDeployer implements AutoCloseable {
      *     none means the Resolver default
      */
     public ResolverDeployer(Path repositoryDirectory, String... checksumAlgorithms) {
-        this(prepare(repositoryDirectory).toUri(), null, null, checksumAlgorithms);
+        this(repositoryDirectory, Instant.now(), checksumAlgorithms);
+    }
+
+    /**
+     * Like {@link #ResolverDeployer(Path, String...)} with an explicit session start time. Maven stamps every
+     * snapshot of a build with the session start ({@code maven.startTime}), not with the deploy time, so a build that
+     * started earlier and deploys later gets an older timestamp and a higher build number.
+     */
+    public ResolverDeployer(Path repositoryDirectory, Instant sessionStartTime, String... checksumAlgorithms) {
+        this(prepare(repositoryDirectory).toUri(), null, null, sessionStartTime, checksumAlgorithms);
     }
 
     /**
@@ -66,6 +79,11 @@ public final class ResolverDeployer implements AutoCloseable {
      * Used by the Reposilite E2E test; the credentials there are throw-away values of a container.
      */
     public ResolverDeployer(URI repositoryUrl, String username, String password, String... checksumAlgorithms) {
+        this(repositoryUrl, username, password, Instant.now(), checksumAlgorithms);
+    }
+
+    private ResolverDeployer(
+            URI repositoryUrl, String username, String password, Instant sessionStartTime, String... checksumAlgorithms) {
         try {
             this.scratch = Files.createTempDirectory("resolver-deployer");
         } catch (IOException e) {
@@ -73,6 +91,7 @@ public final class ResolverDeployer implements AutoCloseable {
         }
         this.system = new RepositorySystemSupplier().get();
         var builder = new SessionBuilderSupplier(system).get().withLocalRepositoryBaseDirectories(scratch.resolve("local"));
+        builder.setConfigProperty("maven.startTime", Date.from(sessionStartTime));
         if (checksumAlgorithms.length > 0) {
             builder.setConfigProperty("aether.checksums.algorithms", String.join(",", checksumAlgorithms));
         }

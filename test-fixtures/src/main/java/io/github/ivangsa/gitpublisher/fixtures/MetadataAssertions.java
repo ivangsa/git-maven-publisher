@@ -41,6 +41,7 @@ import org.apache.maven.artifact.repository.metadata.io.xpp3.MetadataXpp3Reader;
  * <ul>
  *   <li>every file parses with {@code maven-repository-metadata};
  *   <li>every {@code snapshotVersion} resolves to an existing file {@code a-<value>[-classifier].<extension>};
+ *   <li>{@code <snapshot>} (timestamp, buildNumber) names a build that has files in the directory;
  *   <li>every {@code version} of A-level metadata has an existing directory;
  *   <li>{@code latest} and {@code release} are members of {@code versions};
  *   <li>every metadata file has checksum files (at least one, or the configured algorithms), and every checksum
@@ -134,6 +135,42 @@ public final class MetadataAssertions {
                         + "', extension='" + sv.getExtension() + "') points at missing file " + expected);
             }
         }
+        checkSnapshotElement(rel, dir, metadata, versioning, violations);
+    }
+
+    /** {@code <snapshot>} (timestamp, buildNumber) must name a build that has files in the directory. */
+    private static void checkSnapshotElement(
+            String rel, Path dir, Metadata metadata, Versioning versioning, List<String> violations) {
+        var snapshot = versioning.getSnapshot();
+        if (snapshot == null || snapshot.isLocalCopy() || snapshot.getTimestamp() == null) {
+            return;
+        }
+        String version = metadata.getVersion();
+        String base = version.endsWith("-SNAPSHOT") ? version.substring(0, version.length() - "-SNAPSHOT".length()) : version;
+        String prefix = metadata.getArtifactId() + "-" + base + "-" + snapshot.getTimestamp() + "-"
+                + snapshot.getBuildNumber();
+        boolean found;
+        try (Stream<Path> files = Files.list(dir)) {
+            found = files.map(p -> p.getFileName().toString())
+                    .anyMatch(n -> n.startsWith(prefix)
+                            && (n.length() == prefix.length()
+                                    || n.charAt(prefix.length()) == '.'
+                                    || n.charAt(prefix.length()) == '-'));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        if (!found) {
+            violations.add(rel + ": <snapshot> " + snapshot.getTimestamp() + "-" + snapshot.getBuildNumber()
+                    + " names a build that has no files in the directory");
+        }
+    }
+
+    private static boolean hasRegularFile(Path dir) {
+        try (Stream<Path> walk = Files.walk(dir)) {
+            return walk.anyMatch(Files::isRegularFile);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static void checkArtifactLevel(
@@ -147,8 +184,12 @@ public final class MetadataAssertions {
         }
         List<String> versions = versioning.getVersions();
         for (String version : versions) {
-            if (!Files.isDirectory(dir.resolve(version))) {
+            Path versionDir = dir.resolve(version);
+            if (!Files.isDirectory(versionDir)) {
                 violations.add(rel + ": <version> " + version + " has no directory");
+            } else if (!hasRegularFile(versionDir)) {
+                violations.add(rel + ": <version> " + version
+                        + " has no files below its directory (Git does not store empty directories)");
             }
         }
         if (versioning.getLatest() != null && !versions.contains(versioning.getLatest())) {

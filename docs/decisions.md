@@ -218,3 +218,70 @@ Newest last. Format: date · decision · reason · alternatives rejected.
   Two layers: failsafe itself fails ("No tests were executed") when the E2E class is removed (verified locally), the CI script guards against an empty or missing report.
 - **Reason:** Reposilite is an interop smoke test only (D-014). A guard that cannot silently pass keeps the profile from rotting.
 - **Rejected:** Running `-Pe2e` only in a separate CI job (a second JDK/Maven setup for one test).
+
+## D-025 Builds are ordered by build number (R01)
+- **Date:** 2026-10-24
+- **Decision:** Retention (design 6) and the V-level merge (design 5) order builds by `(buildNumber, timestamp)`, not by timestamp. The merge picks per
+  `(classifier, extension)` the entry of the build with the greater build number instead of the greater `updated`, and `<snapshot>` is the
+  `(timestamp, buildNumber)` of that build. New invariant, enforced by `MetadataAssertions` (and so by `IntegrityCheck`, T17):
+  `<snapshot>` names a build that has files in the directory.
+- **Reason:** Maven stamps snapshots with the session start (`maven.startTime`), so a build that started earlier but deployed later gets an older
+  timestamp and a higher build number, and Maven's metadata points at it. Ordering by timestamp made retention delete that build (review F1).
+- **Rejected:** Ordering by timestamp with build number as tie-break (the bug); recomputing `<snapshot>` from file names (hides inconsistent input).
+
+## D-026 ResolverDeployer is one Maven session (R02)
+- **Date:** 2026-10-24
+- **Decision:** `ResolverDeployer` sets `maven.startTime` once per instance (default: construction time; explicit `Instant` constructor). Every snapshot it
+  deploys has that timestamp; build numbers still increase. `ConcurrentPublishScenario` takes the start time right after the barrier, before checkout.
+  Self-test `ResolverDeployerStartTimeTest`: B (started 60 s ago) deploys first, A (started 600 s ago) deploys last; result is build 1 with the newer
+  timestamp, build 2 with the older timestamp, and `<snapshot>` = build 2 with the older timestamp, as Maven does.
+- **Reason:** The oracle must reproduce what `mvn deploy` stamps; otherwise out-of-order timestamps (D-025) can never occur in tests.
+  Side effect: `SequentialReference.replay` now stamps a whole script with one timestamp; names stay unique through build numbers, and `TreeNormalizer` orders by build number.
+
+## D-027 The tree ref is a hint, not a lease (R03)
+- **Date:** 2026-10-24
+- **Decision:** The push of `refs/publisher/tree` (D-020) is forced with no expected old id. Its status is ignored: only the branch update decides OK or
+  retry (design 4.5). The old design expected "the tree of `expectedSha`" and treated a rejection like a lease failure.
+- **Reason:** Review F3. When the branch exists without the tree ref (created by hand, by a Pages setup or by plain `git push`), that lease can never
+  succeed, but the branch update in the same push does. Every attempt then moved the branch and was rejected again until `maxAttempts`, and every later publish failed the same way.
+  Evidence: JGit 7.8.0 over `file://`: branch `OK`, tree ref `REJECTED_REMOTE_CHANGED`.
+- **T20 Done when** extended: branch without tree ref publishes in one attempt. If the server rejects the custom ref outright, the publish is still correct (D-020 fallback).
+- **Rejected:** Atomic push (`setAtomic(true)`): not supported everywhere and would make the hint block the publish; lease with the fetched id of the tree ref (an extra fetch for a hint).
+
+## D-028 Same-snapshot collisions are renumbered; the reference replays push order (R04)
+- **Date:** 2026-10-24
+- **Decision (design 7):** when replay finds that our snapshot build number is already taken on the remote for that version, our build is
+  renumbered to remote max + 1 (files and checksums renamed, our metadata entries rewritten) before the three-way merge. This replaces "should be impossible".
+  **Harness:** `ConcurrentPublishScenario` gives every publication of a step without explicit parts unique content (jar, pom, sources carry the publication
+  index), so collapsing two builds into one is a lost file. `deployedFiles` is a list of (path, content), not a map: a path written twice with different content
+  is always reported lost. The scenario takes an optional session clock (tests fix it to force same-second builds).
+  Publishers call `Publication.pushed()` right after their push; `assertMatchesSequentialReference` replays `pushOrder()`, not `deployOrder()`, and fails
+  clearly if the publisher did not report every push. Self-tests: `ConcurrentPublishScenarioOrderTest` (`overlayWithoutRenumbering` is caught; a publication
+  pair pushed against deploy order matches the push-order reference and not the deploy-order one).
+- **Reason:** Review F4. Two same-second builds of one snapshot produce identical file names with different content, which byte-identical test content hid.
+  `<versions>` follow push order (design 5), so a deploy-order reference flags a correct publisher.
+- **Risk:** `pushed()` is called after the push returns, so two publishers that push back to back can report in the other order. T22/T23 must report
+  from a hook right after the lease-winning push, or force the push order in the differential scripts.
+- **Rejected:** Reading push order from branch history (the branch has one parentless commit); keeping `deployOrder()` as the reference and sorting metadata away.
+
+## D-029 LeakScanner looks for encoded canaries; e2e is a separate failsafe execution (R05)
+- **Date:** 2026-10-24
+- **Decision:** `LeakScanner` searches, in text, file names, file contents and Git config, for the raw canary, the URL-encoded canary, and the
+  Base64 canary (standard and URL-safe alphabets) at all three alignments (the stable middle of the encoding of 0, 1 and 2 bytes of prefix plus the canary),
+  which covers `Authorization: Basic base64(user:canary)` for any username. Findings name the form ("Base64 canary") and never echo a secret.
+  Profile `e2e` adds a second failsafe execution (`e2e`, includes `**/*E2E.java`, reports in `target/failsafe-reports-e2e`) instead of replacing the includes
+  of the default one, so `*IT` keeps running under `-Pe2e`. The CI guard sums `tests - skipped` over `failsafe-reports-e2e`.
+- **Reason:** Review F5 and F8. A wire/debug log carries the token as Base64; a skipped E2E (`disabledWithoutDocker`) counted as executed.
+- **Rejected:** Decoding every Base64 run found in the text (heavier, more false positives); a username list for the basic-auth form (the alignment forms already cover any username).
+
+## D-030 TreeNormalizer normalizes `.module` files (R06)
+- **Date:** 2026-10-24
+- **Decision:** `.module` contents get the same timestamp/build-number normalization as file names (UTF-8, CRLF folded). Checksum files of `.module`
+  (`.md5/.sha1/.sha256/.sha512`) are compared by name only, like metadata checksums. A real content difference in a `.module` is still reported.
+- **Reason:** Review F6. Gradle writes timestamped names into `variants[].files[].url`; without this T41 can never pass.
+
+## D-031 A version directory must contain a regular file (R07)
+- **Date:** 2026-10-24
+- **Decision:** Invariant "every `<version>` has a directory" requires at least one regular file below that directory (`MetadataAssertions`; the production
+  `IntegrityCheck` of T17 must agree). Design section 5 wording unchanged in meaning: Git stores no empty directories, so the pushed branch is the judge.
+- **Reason:** Review F7. `keepVersions` (T47) empties version directories; the tree passes in `repo/` and fails on the branch.

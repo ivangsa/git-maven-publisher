@@ -46,6 +46,36 @@ public final class ReferencePublishers {
                                 publication.branch(),
                                 readFiles(repo),
                                 "Publish " + publication.step().coordinates());
+                publication.pushed();
+            }
+        };
+    }
+
+    /**
+     * Broken on purpose, more quietly than {@link #forcePushWithoutLease}: it takes the current tip at push time and
+     * overlays its own changed files (nothing is overwritten wholesale) but never renumbers a colliding build. Two
+     * publications that deployed against the same base in the same session second write the same file names, and the
+     * last overlay wins. {@code afterDeploy} lets tests make both deploy against the same base.
+     */
+    public static ConcurrentPublishScenario.Publisher overlayWithoutRenumbering(Runnable afterDeploy) {
+        Object lock = new Object();
+        return publication -> {
+            Path repo = materialize(publication);
+            Map<String, byte[]> base = readFiles(repo);
+            publication.deploy().deployInto(repo);
+            afterDeploy.run();
+            Map<String, byte[]> after = readFiles(repo);
+            synchronized (lock) {
+                Map<String, byte[]> merged = publication.remote().readTree(publication.branch());
+                after.forEach((path, content) -> {
+                    if (!base.containsKey(path) || !java.util.Arrays.equals(base.get(path), content)) {
+                        merged.put(path, content);
+                    }
+                });
+                publication.remote()
+                        .commitFiles(
+                                publication.branch(), merged, "Publish " + publication.step().coordinates());
+                publication.pushed();
             }
         };
     }
@@ -69,6 +99,7 @@ public final class ReferencePublishers {
                                 publication.branch(),
                                 readFiles(repo),
                                 "Publish " + publication.step().coordinates());
+                publication.pushed();
             }
         };
     }

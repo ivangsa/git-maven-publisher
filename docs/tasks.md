@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 0 done (T00-T11) · Last finished: B03 (T07, T08, T09, T09b) · Next: review of Phase 0, then B04 (T12, T13, T14, T17)
+**Status:** Phase 0 done (T00-T11, T09b; review 2026-10-24-f65192f fixed by R01-R07) · Last finished: BR3 (R05, R06, R07) · Next: B04 (T12, T13, T14, T17)
 
 ## Batches
 
@@ -14,6 +14,9 @@ Inside a batch, tasks run in the order listed (B04 does T17 before T15/T16 so me
 | B01 | T01, T02, T03, T10 | mechanic | testing | | done |
 | B02 | T04, T05, T06, T11 | implementer | testing | | done |
 | B03 | T07, T08, T09, T09b | implementer | testing | yes (end of Phase 0) | done |
+| BR1 | R01, R02 | implementer | testing | | done |
+| BR2 | R03, R04 | implementer | testing, core | | done |
+| BR3 | R05, R06, R07 | implementer | testing | | done |
 | B04 | T12, T13, T14, T17 | implementer | core | | todo |
 | B05 | T15 (metadata merge) | implementer | core | | todo |
 | B06 | T16 (retention) | implementer | core | yes (merge + retention) | todo |
@@ -106,14 +109,14 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
   Diff `repo/` against `expectedSha` tree → added/modified paths.
   Done when: unit tests for add, modify, unchanged, nested paths, empty base.
 - [ ] T20 Commit and push with lease (single attempt)
-  Parentless commit from `repo/`, message format, forced push with expected old id. Also moves `refs/publisher/tree` in the same push (D-020).
-  Done when: after N publishes the branch has exactly 1 commit; stale lease returns a lease-failure result; the second and later pushes send only the new objects.
+  Parentless commit from `repo/`, message format, forced push with expected old id. Also moves `refs/publisher/tree` in the same push, without a lease on it (D-020, D-027).
+  Done when: after N publishes the branch has exactly 1 commit; stale lease returns a lease-failure result; the second and later pushes send only the new objects. The branch exists without `refs/publisher/tree` (created by hand): the publish succeeds in one attempt and creates the tree ref. A rejected tree ref never fails or retries a publish (D-027).
 - [ ] T21 Retry loop
   Back-off with jitter; on lease failure re-fetch, re-materialize and copy `ours` for paths the remote did not change; a path changed on both sides raises `PublishException` (until T21b); transport errors retried, auth failures fail fast.
   Done when: a competing push on disjoint coordinates between checkout and push ends with both publications present and valid; budget exhaustion raises `PublishException`; an auth failure makes exactly one attempt.
 - [ ] T21b Overlay replay with metadata merge
   Paths changed on both sides: `maven-metadata.xml` → three-way merge (design §5) + regenerated checksums, then retention and integrity again; any other file → `PublishException`.
-  Done when: competing pushes on the same artifactId (different versions) and on the same snapshot version end with merged valid metadata; entries removed by the remote's retention are not resurrected.
+  Done when: competing pushes on the same artifactId (different versions) and on the same snapshot version end with merged valid metadata (a colliding build number is renumbered to remote max + 1, D-028; the file names of two same-second builds are identical before the renumber); entries removed by the remote's retention are not resurrected.
 - [ ] T22 Concurrency IT
   `ConcurrentPublishScenario` with the real `GitPublisher` (8 threads, shared + distinct coordinates).
   Done when: passes 20 repeated runs in CI time budget.
@@ -213,23 +216,23 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 From [review 2026-10-24-f65192f](reviews/2026-10-24-f65192f.md) (end of Phase 0, verdict FIX FIRST). All before B04.
 Review tests live in `test-fixtures/src/test/java/io/github/ivangsa/gitpublisher/fixtures/review/`.
 
-- [ ] R01 Build order by build number; `<snapshot>` invariant (critical, F1)
+- [x] R01 Build order by build number; `<snapshot>` invariant (critical, F1)
   Design §5/§6: order builds by build number (tie-break timestamp), not by timestamp; merge picks per key by the same order.
   Add the §5 invariant "`<snapshot>` names a build with files in the directory" to `MetadataAssertions`. Decision entry.
   Done when: `R01SnapshotElementInvariantTest` passes; design and decisions updated.
-- [ ] R02 `ResolverDeployer` stamps like one Maven session (F2)
+- [x] R02 `ResolverDeployer` stamps like one Maven session (F2)
   Set `maven.startTime` per deployer session; allow an explicit start time; `ConcurrentPublishScenario` takes it at the barrier.
   Done when: `R02ResolverDeployerSessionStartTimeTest` passes; a harness self-test deploys "started earlier, deployed later" and records the result in decisions.
-- [ ] R03 Tree ref is a hint, not a lease (design only, F3)
+- [x] R03 Tree ref is a hint, not a lease (design only, F3)
   Design §4.5 and D-020: push `refs/publisher/tree` without a lease on it (or with the fetched id) and ignore its status; only the branch status decides OK/retry. Extend T20 "Done when" with: branch exists without the tree ref → publish succeeds in one attempt.
   Done when: design, decisions and T20 updated.
-- [ ] R04 Same-snapshot concurrency: build number collisions and reference order (F4)
+- [x] R04 Same-snapshot concurrency: build number collisions and reference order (F4)
   Design §7: replay renumbers a colliding build to remote max + 1 (or another recorded decision). Harness: unique content per publication in `ConcurrentPublishScenario`; record push order and replay that order in `assertMatchesSequentialReference`.
   Done when: design/decisions updated; a harness self-test shows two same-second publications of one snapshot are no longer counted as "nothing lost".
-- [ ] R05 LeakScanner detects encoded tokens; e2e profile hygiene (F5, F8)
+- [x] R05 LeakScanner detects encoded tokens; e2e profile hygiene (F5, F8)
   Base64 (basic auth, three alignments) and URL-encoded canary in text, trees and Git config. E2E as a separate failsafe execution so `*IT` still runs under `-Pe2e`; CI guard counts `tests - skipped`.
   Done when: `R05LeakScannerBasicAuthTest` passes.
-- [ ] R06 TreeNormalizer normalizes `.module` contents (minor, F6)
+- [x] R06 TreeNormalizer normalizes `.module` contents (minor, F6)
   Done when: `R06TreeNormalizerModuleFileTest` passes.
-- [ ] R07 Version directory must not be empty (minor, F7)
+- [x] R07 Version directory must not be empty (minor, F7)
   Done when: `R07EmptyVersionDirectoryTest` passes.

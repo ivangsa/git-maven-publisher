@@ -107,8 +107,8 @@ No `.git` inside the served tree, no URL or credentials written to any Git confi
    3. `IntegrityCheck` (§5). Violation = bug → fail, never push.
    4. Build tree from `repo/` (DirCache + ObjectInserter), commit with **no parents**, message:
       `Publish <coords...>` + blank line + `source: <sha>`.
-   5. Push `RemoteRefUpdate(force=true, expectedOldObjectId = expectedSha or zeroId)`, together with a second update that moves `refs/publisher/tree` to the new root tree (expected old id = the tree of `expectedSha`, or zeroId). Without it JGit resends the whole tree for a parentless commit (D-020).
-   6. `OK` → done. `REJECTED_REMOTE_CHANGED` / lease failure → back-off, re-fetch, `OverlayReplay`, go to 3.ii.
+   5. Push `RemoteRefUpdate(force=true, expectedOldObjectId = expectedSha or zeroId)`, together with a second update that force-moves `refs/publisher/tree` to the new root tree, **without a lease** (`expectedOldObjectId` unset). The tree ref is a transfer hint, not a lease: without it JGit resends the whole tree for a parentless commit (D-020). Its status is ignored; only the branch status decides (D-027).
+   6. Branch update `OK` → done, whatever the status of the tree ref (it may be missing, stale or rejected, for example when the branch was created by hand; the next push repairs it). Branch `REJECTED_REMOTE_CHANGED` / lease failure → back-off, re-fetch, `OverlayReplay`, go to 3.ii.
       Transport `IOException` → back-off and retry within the same budget. Auth failure → fail fast.
 
 ## 5. Metadata rules
@@ -125,12 +125,13 @@ Entries the remote deleted (e.g. by its retention) are not resurrected.
 | A | `versions` | Remote order, then our new versions appended (matches Resolver append behaviour; confirmed by the sequential reference, T07). |
 | A | `latest`, `release` | Value from the side with the greater `lastUpdated`. `release` only if releases allowed. |
 | A/V | `lastUpdated` | max of both. |
-| V | `snapshotVersions` | Union keyed by `(classifier, extension)`; per key the entry with greater `updated` wins. |
-| V | `snapshot` | `timestamp` from the newest entry; `buildNumber` = max of both. |
+| V | `snapshotVersions` | Union keyed by `(classifier, extension)`; per key the entry of the build with the greater `(buildNumber, timestamp)` wins; `updated` is not used (D-025). |
+| V | `snapshot` | `(timestamp, buildNumber)` of the build with the greatest `(buildNumber, timestamp)` among both sides; always a build that has files. |
 
 Invariants (checked by `IntegrityCheck` before commit, and by every test via the harness):
 - Every `<snapshotVersion>` resolves to an existing file `a-<value>[-classifier].<extension>`.
-- Every `<version>` in A-level metadata has an existing directory.
+- V-level `<snapshot>` (timestamp, buildNumber) names a build that has files in the directory.
+- Every `<version>` in A-level metadata has an existing directory with at least one regular file below it (Git stores no empty directories, D-031).
 - `latest`/`release` are members of `<versions>`.
 - Every metadata file has checksum files for the configured algorithms, and they match.
 - XML is well formed and parses with the oracle parser (`maven-repository-metadata`, test scope).
@@ -142,7 +143,7 @@ Checksum files of rewritten metadata are regenerated for every algorithm already
 Runs per touched `g:a:v-SNAPSHOT` directory, inside the same commit.
 
 - A *build* = all files whose name contains the same `<yyyyMMdd.HHmmss>-<buildNumber>` (artifacts, `.pom`, `.module`, classifiers, `.asc`, checksums).
-- Order builds by `(timestamp, buildNumber)`, newest first. Keep the first `keepSnapshots`, delete the rest.
+- Order builds by `(buildNumber, timestamp)`, newest first: Maven stamps the session start time, so a build that started earlier but deployed later has an older timestamp and a higher build number, and it is the one the metadata points at (D-025). Keep the first `keepSnapshots`, delete the rest.
 - Rewrite V-level metadata: drop `<snapshotVersion>` entries whose file was deleted. If the newest build is kept, `<snapshot>` is unchanged.
 - `keepVersions` (Phase 3): per touched artifactId, order `-SNAPSHOT` versions by V-level `lastUpdated`, delete the oldest directories beyond N, remove them from A-level `<versions>`, fix `latest`.
 - Non-timestamped files are never deleted by retention.
@@ -155,7 +156,8 @@ Runs per touched `g:a:v-SNAPSHOT` directory, inside the same commit.
   - path absent in new remote, or unchanged since base → copy ours;
   - path changed on both sides and is `maven-metadata.xml` → three-way merge (§5);
   - checksum of a metadata file → regenerated after merge;
-  - any other file changed on both sides with different content → `PublishException` (should be impossible with timestamped names).
+  - a snapshot build of ours whose build number is already used on the remote for that version (two builds of one `-SNAPSHOT` that started from the same tip, possibly in the same second, so even the file names are identical) → **renumber**: our build becomes remote max build number + 1. Rename its files and checksums (`<ts>-<n>` → `<ts>-<max+1>`), rewrite our `<snapshotVersions>` entries and `<snapshot>` before the three-way merge (D-028). Build numbers stay unique and in push order, as sequential `mvn deploy` runs would give;
+  - any other file changed on both sides with different content → `PublishException` (a non-snapshot file, or a timestamped name that is not a build collision).
 - After `maxAttempts` → `PublishException` with the last rejection reason. Nothing partial is ever pushed.
 
 ## 8. Authentication and security
@@ -186,7 +188,7 @@ independent metadata oracle. The native deploy tools are.
 | Oracle | What it checks | Where |
 | --- | --- | --- |
 | **Sequential reference** (primary, always on, no Docker) | Expected tree = the same publications deployed one after another by the native tool (Maven Resolver; Gradle `maven-publish` in Phase 2) into a clean `file://` repo. Actual tree = our concurrent path (separate checkouts, failed lease, overlay replay, metadata merge). `TreeNormalizer` replaces timestamps, build numbers (by order), `lastUpdated`/`updated`; `TreeDiff` must report no difference. | `test-fixtures` (`SequentialReference`, `TreeNormalizer`, `TreeDiff`), core ITs, plugin ITs |
-| **Real Maven Resolver** (`maven-resolver-supplier`, test scope) | Produces artifacts and metadata exactly like `mvn deploy`. Used as the "native deploy" in core tests and to build the sequential reference. | `test-fixtures` |
+| **Real Maven Resolver** (`maven-resolver-supplier`, test scope) | Produces artifacts and metadata exactly like `mvn deploy`; one deployer is one session with one `maven.startTime` (settable, D-026). Used as the "native deploy" in core tests and to build the sequential reference. | `test-fixtures` |
 | **Golden files** from Maven Central and public snapshot repos | Parser round-trip, merge and retention on real-world shapes, incl. a KMP library (`.module`, many artifactIds). Source URL + date in `fixtures/README.md`. | `test-fixtures/src/main/resources/golden` |
 | **Clean consumers** | Plain Maven project (Maven Verifier, empty local repo) and Gradle KMP project (TestKit) resolve from an embedded static HTTP server (Jetty) serving a working tree checked out from the pushed branch, i.e. what Pages would serve. | `test-fixtures` (`PagesServer`), plugin ITs |
 | **Concurrency** | N threads publishing to one bare repo on disk; same and different coordinates. Assert no lost files, valid XML, invariants hold. | core ITs |
