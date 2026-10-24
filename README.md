@@ -1,0 +1,1 @@
+Coverage badges, written by CI.
