@@ -1,0 +1,130 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../kotlinx-datetime/0.8.0-0.6.x-compat/kotlinx-datetime-0.8.0-0.6.x-compat.module",
+    "group": "org.jetbrains.kotlinx",
+    "module": "kotlinx-datetime",
+    "version": "0.8.0-0.6.x-compat",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.5"
+    }
+  },
+  "variants": [
+    {
+      "name": "jsApiElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.js.compiler": "ir",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-dom-api-compat",
+          "version": {
+            "requires": "2.1.20"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlinx",
+          "module": "kotlinx-serialization-core",
+          "version": {
+            "requires": "1.6.2"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.1.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "kotlinx-datetime-js-0.8.0-0.6.x-compat.klib",
+          "url": "kotlinx-datetime-js-0.8.0-0.6.x-compat.klib",
+          "size": 663682,
+          "sha512": "03709ec593108bf7f092f995dbc9171eddb69ef7e2ea77ca9ceef38b8cbe37d96bc14f2f78333673c13a26e65fddf3163c7b7e7e3576bebf38d50e1a6627ad60",
+          "sha256": "5778fecc3a6decdcdefb8de88cbe26af9c1b0024411181570a64a330b98b9a45",
+          "sha1": "8ab7349c930a2fd164eb1d7c2bfb3752caf1822e",
+          "md5": "72839d2c1dc5b3e678b7ca4f5746041a"
+        }
+      ]
+    },
+    {
+      "name": "jsRuntimeElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.js.compiler": "ir",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-dom-api-compat",
+          "version": {
+            "requires": "2.1.20"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlinx",
+          "module": "kotlinx-serialization-core",
+          "version": {
+            "requires": "1.6.2"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.1.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "kotlinx-datetime-js-0.8.0-0.6.x-compat.klib",
+          "url": "kotlinx-datetime-js-0.8.0-0.6.x-compat.klib",
+          "size": 663682,
+          "sha512": "03709ec593108bf7f092f995dbc9171eddb69ef7e2ea77ca9ceef38b8cbe37d96bc14f2f78333673c13a26e65fddf3163c7b7e7e3576bebf38d50e1a6627ad60",
+          "sha256": "5778fecc3a6decdcdefb8de88cbe26af9c1b0024411181570a64a330b98b9a45",
+          "sha1": "8ab7349c930a2fd164eb1d7c2bfb3752caf1822e",
+          "md5": "72839d2c1dc5b3e678b7ca4f5746041a"
+        }
+      ]
+    },
+    {
+      "name": "jsSourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.js.compiler": "ir",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "files": [
+        {
+          "name": "kotlinx-datetime-js-0.8.0-0.6.x-compat-sources.jar",
+          "url": "kotlinx-datetime-js-0.8.0-0.6.x-compat-sources.jar",
+          "size": 178325,
+          "sha512": "dc6ec9c666f257d5255010115695f94c4d487312ceaa7068d226d9c116f659f033e8642f1e6a331e61a300646a901bd76e3745a89df0169b1e787313cae9f7c5",
+          "sha256": "d25a0cd8bcedd43e48c47d240f134a4fcbd01a3e73961f000cf6c632f6ed7b22",
+          "sha1": "a87e81db2b89e2f97fc922aee1f161ff17e09d98",
+          "md5": "18820d6adaef35126f6eb6c191e01bad"
+        }
+      ]
+    }
+  ]
+}

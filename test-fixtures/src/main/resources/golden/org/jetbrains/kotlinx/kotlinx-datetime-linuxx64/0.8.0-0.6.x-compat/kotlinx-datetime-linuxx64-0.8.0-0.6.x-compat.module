@@ -1,0 +1,80 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../kotlinx-datetime/0.8.0-0.6.x-compat/kotlinx-datetime-0.8.0-0.6.x-compat.module",
+    "group": "org.jetbrains.kotlinx",
+    "module": "kotlinx-datetime",
+    "version": "0.8.0-0.6.x-compat",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.5"
+    }
+  },
+  "variants": [
+    {
+      "name": "linuxX64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "linux_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlinx",
+          "module": "kotlinx-serialization-core",
+          "version": {
+            "requires": "1.6.2"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.1.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "kotlinx-datetime-linuxX64Main-0.8.0-0.6.x-compat.klib",
+          "url": "kotlinx-datetime-linuxx64-0.8.0-0.6.x-compat.klib",
+          "size": 666817,
+          "sha512": "bc372d2bb11abd9db25838b6ac4860d81f90d4431063a7814768a5832832dd19e90e513eff0ec100f5c5445de5d19d35a82bd283a1b5b244c3a74621076a57d2",
+          "sha256": "e70ee98621e2ad5d5604a64fb03d2ecb775516a92ba6f26ca4c89e4eb42dcc15",
+          "sha1": "6591295e9a68cb4c35f4460984f76cc495d7ee14",
+          "md5": "e19be4b22fef9f5219dd464dcce2a1b8"
+        }
+      ]
+    },
+    {
+      "name": "linuxX64SourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.native.target": "linux_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "files": [
+        {
+          "name": "kotlinx-datetime-linuxx64-0.8.0-0.6.x-compat-sources.jar",
+          "url": "kotlinx-datetime-linuxx64-0.8.0-0.6.x-compat-sources.jar",
+          "size": 179227,
+          "sha512": "b911fe9b698361df4c61cbf916aa7cd9725ba33b80ef657160a929374c958d6cd2764fc46f7250643c66a59f8fd3684abdf3cec2d670693d41c673664f2fb3fd",
+          "sha256": "01f57da5157f206b71e09a0103bd1b12c83cf7407a3c8129522768b1230c7ab0",
+          "sha1": "e5b636acefd0e4b58a739479eadd4cb419b85d59",
+          "md5": "81aec7500ebccc7dc3d8d373edef5b8f"
+        }
+      ]
+    }
+  ]
+}

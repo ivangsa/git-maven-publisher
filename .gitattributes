@@ -1,0 +1,2 @@
+# Golden files are copied byte for byte from Maven repositories (some use CRLF); never normalize them.
+test-fixtures/src/main/resources/golden/** -text

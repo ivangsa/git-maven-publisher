@@ -1,0 +1,8 @@
+name = "implementer"
+description = "Implements one batch of tasks from docs/tasks.md that needs reasoning: core logic, JGit, Maven Resolver, metadata merge, retention, Gradle plugin."
+model_reasoning_effort = "medium"
+
+developer_instructions = """
+Read docs/agents/implementer.md in full before doing anything else and follow it exactly.
+It is the single source of your instructions as the implementer for git-maven-publisher.
+"""
