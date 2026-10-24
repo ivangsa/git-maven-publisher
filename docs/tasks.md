@@ -207,3 +207,29 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [ ] T52 Guide: publishing with a GitHub App token in GitHub Actions
   Docs page: create the App (`Contents: write`), install it on the snapshots repo, mint the token with `actions/create-github-app-token`, pass it as `GIT_PUBLISHER_TOKEN`; compare with fine-grained PAT and `GITHUB_TOKEN`.
   Done when: the workflow snippet in the guide is the one used by T50's template and passes `actionlint`.
+
+## Review findings
+
+From [review 2026-10-24-f65192f](reviews/2026-10-24-f65192f.md) (end of Phase 0, verdict FIX FIRST). All before B04.
+Review tests live in `test-fixtures/src/test/java/io/github/ivangsa/gitpublisher/fixtures/review/`.
+
+- [ ] R01 Build order by build number; `<snapshot>` invariant (critical, F1)
+  Design §5/§6: order builds by build number (tie-break timestamp), not by timestamp; merge picks per key by the same order.
+  Add the §5 invariant "`<snapshot>` names a build with files in the directory" to `MetadataAssertions`. Decision entry.
+  Done when: `R01SnapshotElementInvariantTest` passes; design and decisions updated.
+- [ ] R02 `ResolverDeployer` stamps like one Maven session (F2)
+  Set `maven.startTime` per deployer session; allow an explicit start time; `ConcurrentPublishScenario` takes it at the barrier.
+  Done when: `R02ResolverDeployerSessionStartTimeTest` passes; a harness self-test deploys "started earlier, deployed later" and records the result in decisions.
+- [ ] R03 Tree ref is a hint, not a lease (design only, F3)
+  Design §4.5 and D-020: push `refs/publisher/tree` without a lease on it (or with the fetched id) and ignore its status; only the branch status decides OK/retry. Extend T20 "Done when" with: branch exists without the tree ref → publish succeeds in one attempt.
+  Done when: design, decisions and T20 updated.
+- [ ] R04 Same-snapshot concurrency: build number collisions and reference order (F4)
+  Design §7: replay renumbers a colliding build to remote max + 1 (or another recorded decision). Harness: unique content per publication in `ConcurrentPublishScenario`; record push order and replay that order in `assertMatchesSequentialReference`.
+  Done when: design/decisions updated; a harness self-test shows two same-second publications of one snapshot are no longer counted as "nothing lost".
+- [ ] R05 LeakScanner detects encoded tokens; e2e profile hygiene (F5, F8)
+  Base64 (basic auth, three alignments) and URL-encoded canary in text, trees and Git config. E2E as a separate failsafe execution so `*IT` still runs under `-Pe2e`; CI guard counts `tests - skipped`.
+  Done when: `R05LeakScannerBasicAuthTest` passes.
+- [ ] R06 TreeNormalizer normalizes `.module` contents (minor, F6)
+  Done when: `R06TreeNormalizerModuleFileTest` passes.
+- [ ] R07 Version directory must not be empty (minor, F7)
+  Done when: `R07EmptyVersionDirectoryTest` passes.
