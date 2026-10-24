@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Last finished: T21b (B10) · Next: B11 (T23, T24)
+**Status:** Last finished: T21b (B10) · Review f9bb6b5 FIX FIRST · Next: R15-R18 (new batch), then B11 (T23, T24)
 
 ## Batches
 
@@ -140,7 +140,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T20 Commit and push with lease (single attempt)
   Parentless commit from `repo/`, message format, forced push with expected old id. Also moves `refs/publisher/tree` in the same push, without a lease on it (D-020, D-027).
   Done when: after N publishes the branch has exactly 1 commit; stale lease returns a lease-failure result; the second and later pushes send only the new objects. The branch exists without `refs/publisher/tree` (created by hand): the publish succeeds in one attempt and creates the tree ref. A rejected tree ref never fails or retries a publish (D-027).
-- [x] T21 Retry loop with independent replay
+- [!] T21 Retry loop with independent replay ([review F1](reviews/2026-10-24-f9bb6b5.md): HTTP 403 retried)
   Back-off with jitter; on lease failure re-fetch, re-materialize, copy `ours` for paths the remote did not change, keep paths the remote changed to identical bytes, then retention and integrity again (design §7). Transport errors retried, auth failures fail fast.
   Done when: a competing push on disjoint coordinates between checkout and push ends with both publications present and valid; two first publications on a missing branch both succeed (identical `.nojekyll`); budget exhaustion raises `PublishException`; an auth failure makes exactly one attempt.
 - [x] T21b Conflict detection and diagnostics
@@ -296,3 +296,20 @@ Review tests live in `src/test/java/io/github/ivangsa/gitpublisher/review/` (R11
 - [x] R14 Interleaving harness: require the interleaving for "both published" (minor, F5)
   An assertion that fails when the publisher never reached `Publication.checkedOut()`, used by the T21/T23 tests; the lock reference keeps its path.
   Done when: a self-test shows a non-interleaving publisher fails the new assertion and `replayOrFail` passes it.
+
+From [review 2026-10-24-f9bb6b5](reviews/2026-10-24-f9bb6b5.md) (lease + retry + replay + conflicts, verdict FIX FIRST). All before B11.
+Review tests live in `src/test/java/io/github/ivangsa/gitpublisher/review/` (R15 and R16 are in the core package because the classes under test are package-private).
+
+- [ ] R15 Classify auth failures by status, not by words in the message (major, F1)
+  A 403 (`serviceNotPermitted`) fails fast like a 401; the URL inside the JGit message never decides. Cover 401 and 403 from a real `GitServlet`. Restore T21 after the full build passes.
+  Done when: `R15AuthFailureClassificationTest` passes.
+- [ ] R16 A permanent push rejection fails fast (minor, F2)
+  Branch statuses other than OK, UP_TO_DATE and REJECTED_REMOTE_CHANGED are fatal with the remote's reason and a force-push hint; design §4 and a decision.
+  Done when: `R16PermanentPushRejectionTest` passes.
+- [ ] R17 Clear the token on close (minor, F3)
+  Clear JGit credentials providers after each operation and the token on `Publication.close()`, or amend design §8 with a decision naming the owner.
+  Done when: `R17TokenClearedOnCloseTest` passes (or is updated with that decision).
+- [ ] R18 A failed publication moves no ref (minor, F4)
+  Move `refs/publisher/tree` only after the branch update succeeded, or amend design §4/§7 and D-027 and reword "nothing was pushed".
+  Also add the T21b tests from F5 (remote deletes a path we changed; same-snapshot conflict with pinned start times and exact paths).
+  Done when: `R18FailedPublicationMovesNoRefTest` passes (or is updated with that decision).
