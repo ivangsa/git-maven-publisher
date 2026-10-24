@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Plan revision complete (D-032..D-045); T09 and R04 restored · Last finished: T16 (B06) · Next: B07 (T18, T19)
+**Status:** Review 2026-10-24-9150059 FIX FIRST: R11–R14 open (before B07) · Last finished: T16 (B06) · Next: R11–R14, then B07 (T18, T19)
 
 ## Batches
 
@@ -279,3 +279,19 @@ From [review 2026-10-24-32f382a](reviews/2026-10-24-32f382a.md) (Phase 0 revalid
 - [x] R10 Redact encoded credentials from scanner diagnostics (minor, F3) (withdrawn with the scanner, D-045, T57)
   Cover source labels and entry paths as well as raw canaries; diagnostics must not echo reversible encoded forms.
   Done when: both `R10EncodedFindingRedactionTest` cases and all prior scanner tests pass. Restore T10/R05 only after the full build passes.
+
+From [review 2026-10-24-9150059](reviews/2026-10-24-9150059.md) (plan revision + retention, verdict FIX FIRST). All before B07.
+Review tests live in `src/test/java/io/github/ivangsa/gitpublisher/review/` (R11 is in the core package because the classes under test are package-private).
+
+- [ ] R11 Keep prefixed attribute names when rewriting metadata (major, F1)
+  `XmlNode` must write back qualified attribute names and namespace declarations; a namespaced round-trip case in the T13 tests.
+  Done when: `R11NamespacedMetadataRewriteTest` passes.
+- [ ] R12 Checksum algorithms and `nojekyll` in the core config; document fixes (major, F2, F4)
+  Design §3 and a decision: `PublishConfig` carries the configured checksum algorithms (non-empty, default SHA-1, MD5) and `nojekyll`;
+  T20/T21 pass them to `Retention` and `IntegrityCheck`. Fix T48 (`PagesServer`), mark D-038 "Revised by D-043, D-045".
+  Done when: unit tests for the default and the validation; design, decisions and tasks updated.
+- [ ] R13 Reject credentials in registry-based URL authorities (minor, F3)
+  Done when: `R13RegistryAuthorityUserInfoTest` passes and the existing `PublishConfigTest` cases still pass.
+- [ ] R14 Interleaving harness: require the interleaving for "both published" (minor, F5)
+  An assertion that fails when the publisher never reached `Publication.checkedOut()`, used by the T21/T23 tests; the lock reference keeps its path.
+  Done when: a self-test shows a non-interleaving publisher fails the new assertion and `replayOrFail` passes it.
