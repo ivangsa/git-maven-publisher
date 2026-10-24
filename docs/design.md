@@ -3,21 +3,23 @@
 Source of truth for contracts. The brief (`docs/brief.md`) says *why*; this file says *what*.
 Changes go here first, with a matching entry in `docs/decisions.md`.
 
-## 1. Modules and build
+## 1. Build and layout
 
-| Module | Path | Build | Depends on | Ships to |
-| --- | --- | --- | --- | --- |
-| `git-maven-publisher-core` | `core/` | Maven | JGit, JDK only | Central |
-| `git-maven-publisher-maven-plugin` | `maven-plugin/` | Maven | core, Maven 3.10 API (provided), Resolver API (provided) | Central |
-| `git-maven-publisher-gradle-plugin` | `gradle-plugin/` | **Gradle** (own wrapper) | core (from `mavenLocal()` / Central), Gradle API | Central + Plugin Portal |
-| test fixtures | `test-fixtures/` | Maven, not deployed | core (test helpers: bare repos, sequential reference, tree diff, Pages server, golden files) | - |
+One Maven project, packaging `maven-plugin`, artifact `io.github.ivangsa:git-maven-publisher-maven-plugin` (D-037).
+The Gradle adapter is a separate Gradle build in `gradle-plugin/` (D-002), Phase 2.
 
-- Root `pom.xml` is the Maven reactor for `core`, `test-fixtures`, `maven-plugin`. Maven Wrapper pinned to 3.10.x.
-- `gradle-plugin/` is a standalone Gradle build. It is **not** in the Maven reactor (D-002).
-  CI order: `./mvnw install` → `./gradlew -p gradle-plugin build`. Version kept in sync by `gradle-plugin/gradle.properties`, checked by a CI step.
-- Full build = both commands. "Build passes" in the working agreement means both pass (only the Maven one until the Gradle build exists).
-- `--release 17`, any JDK ≥ 17 can build. JUnit 5, AssertJ. The default build needs no Docker (D-014).
-- Profile `e2e`: Reposilite via Testcontainers (needs Docker). Optional locally, always enabled in CI; CI fails if it runs zero tests.
+| Part | Location | Notes |
+| --- | --- | --- |
+| Publication logic ("core") | `src/main/java/io/github/ivangsa/gitpublisher/` | JGit + JDK only. No `org.apache.maven` or `org.gradle` imports, enforced by an architecture test. |
+| Maven adapter | `src/main/java/io/github/ivangsa/gitpublisher/maven/` | Mojo, reactor collector. Maven API and Resolver API `provided`. |
+| Test helpers (harness) | `src/test/java/io/github/ivangsa/gitpublisher/fixtures/` | Bare repos, sequential reference, tree diff, consumers, interleaved publish scenarios. |
+| Golden files | `src/test/resources/golden/` | Source URL + fetch date in `golden/README.md`. |
+| Plugin ITs | `src/it/` | `maven-invoker-plugin`; verify scripts use the harness through `addTestClassPath`. |
+| Gradle adapter | `gradle-plugin/` | Own wrapper. How it reuses the core packages is open (Q10), decided before Phase 2. |
+
+- Maven Wrapper pinned to 3.10.x. `--release 17`, any JDK ≥ 17 can build. JUnit 5, AssertJ.
+- Full build = `./mvnw verify`, plus `./gradlew -p gradle-plugin build` once the Gradle build exists. No Docker needed.
+- One artifact is published for the MVP.
 
 ## 2. Public configuration
 
@@ -27,6 +29,7 @@ Changes go here first, with a matching entry in `docs/decisions.md`.
 | --- | --- | --- | --- |
 | `repository` | `git-publisher.repository` | required | Git URL, `https` or `file` only; other schemes are rejected. Credentials in the URL are rejected. |
 | `branch` | `git-publisher.branch` | `gh-pages` | |
+| `nojekyll` | `git-publisher.nojekyll` | `false` | Writes an empty `.nojekyll` at the root on every publish, for users who serve the branch with GitHub Pages (D-043). |
 | `serverId` | `git-publisher.serverId` | none | `settings.xml` `<server>`; password = token, username defaults to `x-access-token`. Decrypted via `SettingsDecrypter`. |
 | `keepSnapshots` | `git-publisher.keepSnapshots` | `3` | ≥ 1 |
 | `keepVersions` | `git-publisher.keepVersions` | `-1` (unlimited) | Phase 3 |
@@ -41,12 +44,29 @@ Changes go here first, with a matching entry in `docs/decisions.md`.
 Token resolution order: `serverId` server (if configured and found) → env `GIT_PUBLISHER_TOKEN` → anonymous (only useful for `file://`).
 No token parameter or property: tokens never go on the command line or into the POM.
 
+#### Reactor transaction (D-034)
+
+- **Participants:** projects in `session.getProjects()` (the reactor after `-pl`/`-am`/`-rf` filtering) whose effective model,
+  with active profiles, binds this plugin's `deploy` goal. Every participant checks in when its execution runs, including
+  with `skip=true` (it checks in with nothing to publish). A project that does not bind the goal is not a participant.
+- **Configuration:** every participant must resolve the same `repository`, `branch`, `workDirectory` and credentials source.
+  A mismatch fails the build before checkout. Per-module `skip` is allowed.
+- **Trigger:** the participant that completes the set runs checkout → one `RepositorySystem.deploy` of everything collected →
+  publish. Thread-safe under `-T`: completion is a counter over the participant set, not reactor order.
+- **Guarantee:** push happens only after every participating execution completed successfully. If a participant fails
+  (also with `--fail-at-end`), the set never completes and nothing is pushed.
+- **Not guaranteed:** that the whole reactor or CI pipeline succeeds. A non-participating module built after the last
+  participant (for example an integration-test module) can fail after the push; the publication stays. Users who need
+  "publish only if everything passed" run publication as a separate CI stage after validation (documented, T31).
+- If every participant is skipped, nothing is checked out or pushed.
+
 ### Gradle (plugin id `io.github.ivangsa.git-maven-publisher`, project plugin applied to root and/or subprojects)
 
 ```kotlin
 gitMavenPublisher {
     repository = "https://github.com/org/maven-snapshots.git" // Property<String>, required
     branch = "gh-pages"                                       // Property<String>
+    nojekyll = false                                          // Property<Boolean>, writes .nojekyll at the root
     token = providers.environmentVariable("GIT_PUBLISHER_TOKEN") // Property<String>, default: that env var, then gradle property gitPublisherToken
     username = "x-access-token"                               // Property<String>
     keepSnapshots = 3                                         // Property<Int>
@@ -58,8 +78,28 @@ gitMavenPublisher {
 ```
 
 - Registers Maven repository `gitPublisher` → `<rootBuildDir>/git-publisher/repo`.
-- Tasks: `gitPublisherCheckout` (before every `publish*PublicationToGitPublisherRepository`), `gitPublisherPush` (finalizer, runs once per build).
-- One shared `BuildService` (`GitPublisherService`) owns the core `Publication`. Configuration-cache compatible; no `Project` access at execution time.
+- One shared `BuildService` (`GitPublisherService`) holds the core `Publication` and the per-task outcomes.
+  Sharing the service coordinates state and resources; it does **not** order tasks. Ordering is explicit (below).
+
+#### Publication lifecycle (D-033)
+
+> Checkout runs once before any selected publication writes to the local repository. Push runs once, after every
+> selected publication participating in the transaction has completed successfully. A failed publication prevents push.
+> Cleanup runs regardless of success or failure.
+
+- **Participants:** the `publish*PublicationToGitPublisherRepository` tasks in the task graph of this invocation. This covers the
+  root aggregate (`publish`, `publishAllPublicationsToGitPublisherRepository`) and direct invocation of one subproject or one publication.
+  The participant set is computed from the task graph at configuration time and stored as task input (configuration cache).
+- **Ordering:** every participant `dependsOn` `gitPublisherCheckout`. `gitPublisherPush` `mustRunAfter` every participant and is
+  added to the graph whenever a participant is.
+- **Push guard:** `gitPublisherPush` pushes only if the service recorded success for every participant. A failed or not-executed
+  participant (also under `--continue` and `--parallel`) means no push, with a log line naming the failed tasks.
+  An unconditional finalizer that pushes is forbidden: Gradle runs finalizers after a failed task.
+  Mechanism (guarded finalizer or Flow API `FlowAction` with `BuildWorkResult`) is chosen in T36 and recorded in decisions.
+- **Writes:** participants write into one local repository directory. They declare `usesService` and the service limits
+  concurrent writers to one (`maxParallelUsages = 1`), so two publications never write metadata at the same time.
+- **Cleanup:** releases temporary state only. `BuildService.close()` never publishes.
+- Configuration-cache compatible: no `Project` access at execution time.
 
 ## 3. Core API
 
@@ -78,7 +118,7 @@ record RetryPolicy(int maxAttempts, Duration baseDelay, Duration maxDelay) {}   
 
 final class GitPublisher {
     GitPublisher(PublishConfig config, PublisherLog log);
-    Publication checkout() throws PublishException;       // step 1-2: shallow fetch, materialize tree, .nojekyll
+    Publication checkout() throws PublishException;       // step 1-2: shallow fetch, materialize tree, .nojekyll if enabled
 }
 
 interface Publication extends AutoCloseable {
@@ -92,14 +132,15 @@ record PublishResult(ObjectId commit, int attempts, Set<String> changedPaths, Se
 interface PublisherLog { void info(String m); void warn(String m); void debug(String m); }  // adapters bridge to Maven Log / Gradle Logger
 ```
 
-Internals (not API): `GitRemote` (fetch/push with lease), `TreeMaterializer`, `ChangeRecorder`, `OverlayReplay`, `MetadataMerger`, `Retention`, `IntegrityCheck`, `ChecksumWriter`, `Redactor`.
+Internals (not API): `GitRemote` (fetch/push with lease), `TreeMaterializer`, `ChangeRecorder`, `OverlayReplay`,
+`MetadataModel` (read/write, for retention and integrity), `Retention`, `IntegrityCheck`, `ChecksumWriter`.
 
 Git layout: object store in `workDirectory/git` (bare JGit repo, no remote configured), served tree in `workDirectory/repo`.
 No `.git` inside the served tree, no URL or credentials written to any Git config. Fetch and push pass the URL per call.
 
 ## 4. Publication algorithm
 
-1. `checkout()`: clean `workDirectory`; shallow fetch (depth 1) `refs/heads/<branch>`; `expectedSha` = fetched id or empty. Materialize tree into `repo/`. Write `.nojekyll`.
+1. `checkout()`: clean `workDirectory`; shallow fetch (depth 1) `refs/heads/<branch>`; `expectedSha` = fetched id or empty. Materialize tree into `repo/`. Write `.nojekyll` if `nojekyll` is enabled.
 2. Adapter runs the native deploy into `repo/` (exactly once).
 3. `publish()`:
    1. `ChangeRecorder`: diff `repo/` against `expectedSha` tree → `ours` = added/modified paths with content (before retention).
@@ -108,27 +149,20 @@ No `.git` inside the served tree, no URL or credentials written to any Git confi
    4. Build tree from `repo/` (DirCache + ObjectInserter), commit with **no parents**, message:
       `Publish <coords...>` + blank line + `source: <sha>`.
    5. Push `RemoteRefUpdate(force=true, expectedOldObjectId = expectedSha or zeroId)`, together with a second update that force-moves `refs/publisher/tree` to the new root tree, **without a lease** (`expectedOldObjectId` unset). The tree ref is a transfer hint, not a lease: without it JGit resends the whole tree for a parentless commit (D-020). Its status is ignored; only the branch status decides (D-027).
-   6. Branch update `OK` → done, whatever the status of the tree ref (it may be missing, stale or rejected, for example when the branch was created by hand; the next push repairs it). Branch `REJECTED_REMOTE_CHANGED` / lease failure → back-off, re-fetch, `OverlayReplay`, go to 3.ii.
-      Transport `IOException` → back-off and retry within the same budget. Auth failure → fail fast.
+   6. Branch update `OK` → done, whatever the status of the tree ref (it may be missing, stale or rejected, for example when the branch was created by hand; the next push repairs it). Branch `REJECTED_REMOTE_CHANGED` / lease failure → back-off, re-fetch, `OverlayReplay` (§7), go to 3.ii.
+      Transport `IOException` → back-off and retry within the same budget. Auth failure → fail fast. Replay conflict → fail fast (§7).
 
 ## 5. Metadata rules
 
 Three files, all `maven-metadata.xml`: G-level (`<plugins>`), A-level (`<versions>`), V-level (`<snapshot>`, `<snapshotVersions>`).
-Parsing/writing: own small StAX model in core (no `maven-repository-metadata` dependency, D-005). Unknown elements preserved where possible.
+Metadata is written by the native deploy. The core reads and rewrites it only for retention (§6) and checks it in `IntegrityCheck`.
+Parsing/writing: own small StAX model in core (no `maven-repository-metadata` dependency at runtime, D-005). Unknown elements preserved where possible.
+There is no metadata merge: concurrent changes to one metadata file are a conflict (§7, D-032).
 
-**Three-way merge** in replay: `result = remote ∪ (ours − base)`, where base = metadata at `expectedSha` of the attempt that produced `ours`.
-Entries the remote deleted (e.g. by its retention) are not resurrected.
+V-level `<snapshotVersions>` maps each `(classifier, extension)` to its **current** timestamped file. It is not a history of
+retained builds. Older timestamped files may stay on disk according to retention; retention finds builds from file names (§6).
 
-| Level | Field | Rule |
-| --- | --- | --- |
-| G | `plugins` | Union keyed by `prefix`; ours wins on equal key. |
-| A | `versions` | Remote order, then our new versions appended (matches Resolver append behaviour; confirmed by the sequential reference, T07). |
-| A | `latest`, `release` | Value from the side with the greater `lastUpdated`. `release` only if releases allowed. |
-| A/V | `lastUpdated` | max of both. |
-| V | `snapshotVersions` | Union keyed by `(classifier, extension)`; per key the entry of the build with the greater `(buildNumber, timestamp)` wins; `updated` is not used (D-025). |
-| V | `snapshot` | `(timestamp, buildNumber)` of the build with the greatest `(buildNumber, timestamp)` among both sides; always a build that has files. |
-
-Invariants (checked by `IntegrityCheck` before commit, and by every test via the harness):
+Invariants (checked by `IntegrityCheck` before commit, and by every test via the harness). They hold within each published tree:
 - Every `<snapshotVersion>` resolves to an existing file `a-<value>[-classifier].<extension>`.
 - V-level `<snapshot>` (timestamp, buildNumber) names a build that has files in the directory.
 - Every `<version>` in A-level metadata has an existing directory with at least one regular file below it (Git stores no empty directories, D-031).
@@ -143,57 +177,93 @@ Checksum files of rewritten metadata are regenerated for every algorithm already
 Runs per touched `g:a:v-SNAPSHOT` directory, inside the same commit.
 
 - A *build* = all files whose name contains the same `<yyyyMMdd.HHmmss>-<buildNumber>` (artifacts, `.pom`, `.module`, classifiers, `.asc`, checksums).
+  Builds are identified from file names, not from `<snapshotVersions>` (which only lists the current one per key).
 - Order builds by `(buildNumber, timestamp)`, newest first: Maven stamps the session start time, so a build that started earlier but deployed later has an older timestamp and a higher build number, and it is the one the metadata points at (D-025). Keep the first `keepSnapshots`, delete the rest.
 - Rewrite V-level metadata: drop `<snapshotVersion>` entries whose file was deleted. If the newest build is kept, `<snapshot>` is unchanged.
-- `keepVersions` (Phase 3): per touched artifactId, order `-SNAPSHOT` versions by V-level `lastUpdated`, delete the oldest directories beyond N, remove them from A-level `<versions>`, fix `latest`.
+- `keepVersions` (Phase 3): per touched `groupId:artifactId`, order `-SNAPSHOT` versions by V-level `lastUpdated`, delete the oldest directories beyond N, remove them from A-level `<versions>`, fix `latest`.
 - Non-timestamped files are never deleted by retention.
 
-## 7. Retry and lease
+## 7. Concurrency contract, retry and lease
+
+### Precondition: external serialization (D-032)
+
+- Publications that share any path must not run concurrently. The CI/CD pipeline enforces this, not the publisher.
+- An artifact is identified by `groupId:artifactId` (an artifactId alone is not unique). Two publications share paths when they
+  touch the same `groupId:artifactId` (any version), or a shared metadata path: G-level plugin metadata of Maven plugins in one
+  groupId, or a path that is both G-level and A-level metadata.
+- The serialization scope is every coordinate a project produces: all Maven modules of a reactor, all Gradle/KMP publications.
+- It covers every workflow that can publish those coordinates. A `concurrency` group local to one source repository is not enough
+  when another repository can publish the same coordinates.
+- Violating the precondition can make a publication fail (below). It never silently overwrites a remote change.
+
+### Supported concurrency
+
+Independent publishers with disjoint paths sharing one destination repository. Lease + retry + overlay replay keep both publications.
 
 - Lease = `expectedOldObjectId` on a forced `RemoteRefUpdate`. Missing branch → `ObjectId.zeroId()` (create only).
 - Back-off: full jitter, `delay = random(0, min(maxDelay, baseDelay * 2^(attempt-1)))`.
-- On lease failure: fetch new tip, materialize into fresh `repo/`, replay `ours`:
-  - path absent in new remote, or unchanged since base → copy ours;
-  - path changed on both sides and is `maven-metadata.xml` → three-way merge (§5);
-  - checksum of a metadata file → regenerated after merge;
-  - a snapshot build of ours whose build number is already used on the remote for that version (two builds of one `-SNAPSHOT` that started from the same tip, possibly in the same second, so even the file names are identical) → **renumber**: our build becomes remote max build number + 1. Rename its files and checksums (`<ts>-<n>` → `<ts>-<max+1>`), rewrite our `<snapshotVersions>` entries and `<snapshot>` before the three-way merge (D-028). Build numbers stay unique and in push order, as sequential `mvn deploy` runs would give;
-  - any other file changed on both sides with different content → `PublishException` (a non-snapshot file, or a timestamped name that is not a build collision).
-- After `maxAttempts` → `PublishException` with the last rejection reason. Nothing partial is ever pushed.
+- On lease failure: fetch new tip, materialize into fresh `repo/`, replay `ours` path by path (base = tree of the attempt's `expectedSha`):
 
-## 8. Authentication and security
+| Remote since base | Action |
+| --- | --- |
+| path unchanged | write ours |
+| path changed to the same bytes as ours (for example `.nojekyll` on two first publications) | keep, no conflict |
+| path changed or deleted with different content | **conflict** |
 
-HTTPS with a token only (D-015). Supported tokens:
+- Checksum files are ordinary paths under the same rule. Then retention, checksums and `IntegrityCheck` run again (§4 3.ii).
+- Conflict → `PublishException`, no retry, nothing pushed. The message lists every conflicting path and says that publications
+  sharing these paths must be serialized externally (design §7).
+- After `maxAttempts` lease failures → `PublishException` with the last rejection reason. Nothing partial is ever pushed.
 
-| Token | Scope | Typical use |
+## 8. Authentication and serving the branch
+
+HTTPS with a token only (D-015). Two documented scenarios (D-035):
+
+| Scenario | Token | Destination |
 | --- | --- | --- |
-| Fine-grained PAT | `Contents: write` on the snapshots repo only; expires | Local development, CI in another repo |
-| `GITHUB_TOKEN` | The workflow's own repo only | Publishing to a branch of the same repo |
-| GitHub App installation token | Repos the App is installed on; short-lived | CI, minted per run (for example `actions/create-github-app-token`) |
+| **Self-publication** (this project's own snapshots, after a bootstrap version exists) | `GITHUB_TOKEN`, `contents: write` | a branch of the workflow's own repository |
+| **External users** (publishing to another repository) | fine-grained PAT, `Contents: write` on the destination repo only, expires; or a GitHub App installation token | dedicated snapshots repository |
 
-All three reach the plugin the same way: Maven `settings.xml` server (`serverId`), Gradle property (`token` /
-`gitPublisherToken`), or env `GIT_PUBLISHER_TOKEN`. JGit gets `UsernamePasswordCredentialsProvider(username, token)`,
-username default `x-access-token`.
-
-- `Redactor` strips userinfo from every URI before logging; all log calls go through it.
+- All tokens reach the plugin the same way: Maven `settings.xml` server (`serverId`), Gradle property (`token` / `gitPublisherToken`),
+  or env `GIT_PUBLISHER_TOKEN`. JGit gets `UsernamePasswordCredentialsProvider(username, token)`, username default `x-access-token`.
+- The token is never written to the remote URL, Git config, a committed file or a log line; repository URLs with userinfo are rejected
+  at config time. Plain unit tests cover these rules. There is no leak scanner (D-045): the plugin creates no credentials and only
+  passes the token to JGit.
 - Token held as `char[]`, wrapped in `UsernamePasswordCredentialsProvider` per operation, cleared on `close()`.
-- Repository URLs with userinfo are rejected at config time.
-- Test: a canary token is used in integration tests; the build fails if it appears in logs, `workDirectory`, or any Git config.
+
+**Serving the branch is the user's responsibility (D-043).** The plugin pushes the branch and nothing else. Users serve it however they
+like: `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/` for a public repository, GitHub Pages configured by hand, or any static
+file server. The plugin deploys nothing to Pages. `nojekyll=true` writes `.nojekyll` for Pages users. The README documents the options.
 
 ## 9. Test strategy
 
-Oracles we do not control, built in Phase 0 before production code (D-014).
+Oracles we do not control, built in Phase 0 before production code (D-014, D-038).
 In a Maven deploy the client computes the metadata and the server only stores files, so a repository manager is not an
 independent metadata oracle. The native deploy tools are.
 
 | Oracle | What it checks | Where |
 | --- | --- | --- |
-| **Sequential reference** (primary, always on, no Docker) | Expected tree = the same publications deployed one after another by the native tool (Maven Resolver; Gradle `maven-publish` in Phase 2) into a clean `file://` repo. Actual tree = our concurrent path (separate checkouts, failed lease, overlay replay, metadata merge). `TreeNormalizer` replaces timestamps, build numbers (by order), `lastUpdated`/`updated`; `TreeDiff` must report no difference. | `test-fixtures` (`SequentialReference`, `TreeNormalizer`, `TreeDiff`), core ITs, plugin ITs |
-| **Real Maven Resolver** (`maven-resolver-supplier`, test scope) | Produces artifacts and metadata exactly like `mvn deploy`; one deployer is one session with one `maven.startTime` (settable, D-026). Used as the "native deploy" in core tests and to build the sequential reference. | `test-fixtures` |
-| **Golden files** from Maven Central and public snapshot repos | Parser round-trip, merge and retention on real-world shapes, incl. a KMP library (`.module`, many artifactIds). Source URL + date in `fixtures/README.md`. | `test-fixtures/src/main/resources/golden` |
-| **Clean consumers** | Plain Maven project (Maven Verifier, empty local repo) and Gradle KMP project (TestKit) resolve from an embedded static HTTP server (Jetty) serving a working tree checked out from the pushed branch, i.e. what Pages would serve. | `test-fixtures` (`PagesServer`), plugin ITs |
-| **Concurrency** | N threads publishing to one bare repo on disk; same and different coordinates. Assert no lost files, valid XML, invariants hold. | core ITs |
+| **Sequential reference** (primary) | Expected tree = the same publications deployed one after another by the native tool (Maven Resolver; Gradle `maven-publish` in Phase 2) into a clean `file://` repo. Actual tree = the same output transported through Git (separate checkouts, failed lease, overlay replay of independent changes). `TreeNormalizer` replaces timestamps, build numbers (by order), `lastUpdated`/`updated`; `TreeDiff` must report no difference. This is a comparison of direct Resolver output with output through Git, not a repository-manager oracle. | `fixtures` (`SequentialReference`, `TreeNormalizer`, `TreeDiff`), ITs |
+| **Real Maven Resolver** (`maven-resolver-supplier-mvn3`, test scope) | Produces artifacts and metadata exactly like `mvn deploy`; one deployer is one session with one `maven.startTime` (settable, D-026). Used as the "native deploy" in core tests and to build the sequential reference. | `fixtures` |
+| **Golden files** from Maven Central and public snapshot repos | Parser round-trip and retention on real-world shapes, incl. a KMP library (`.module`, many artifactIds). | `src/test/resources/golden` |
+| **Clean consumers** | Plain Maven project (Maven Verifier, empty local repo) and Gradle KMP project (TestKit) resolve from a `file://` URL pointing at a working tree checked out from the pushed branch, i.e. exactly what any static file server would serve (D-043). | `fixtures` (`MavenConsumer`), plugin ITs |
+| **Real Git** | Lease, retry and replay against bare repos on disk and JGit's HTTP server. | ITs |
+| **Interleaving** | Deterministic: publisher A checks out, publisher B publishes in full, then A pushes (D-044). Distinct coordinates → A's lease fails, A replays, both publications on the branch, invariants hold. Shared path → A fails with a conflict, B's files untouched. A push without a lease is caught losing B's files. | `fixtures` (`InterleavedPublishScenario`), ITs |
 | **Maven oracle parser** (`maven-repository-metadata`) | Our XML must parse with Maven's own reader. | all tests via `MetadataAssertions` |
-| **Reposilite** (E2E profile `e2e`, Testcontainers) | Interop smoke only: deploys over HTTP to a real repository manager and consumers resolving from it. Not a metadata oracle. | `test-fixtures`, CI |
+| **Negative tests** | Crafted broken trees for every invariant. | `fixtures` self-tests |
 
-Levels: unit (`*Test`, surefire), integration (`*IT`, failsafe), E2E (`*E2E`, profile `e2e`, Docker), plugin ITs (`maven-invoker-plugin`, Gradle TestKit), nightly E2E against a real GitHub Pages repo.
-The default build runs everything except `e2e`. CI runs `-Pe2e` and fails if the profile executed zero tests. No `@Disabled`, no skipped tests in a passing build.
+Do not replace any of these with a fake repository manager or synthetic artifacts that reproduce our own assumptions.
+
+Levels: unit (`*Test`, surefire), integration (`*IT`, failsafe), plugin ITs (`maven-invoker-plugin` in `src/it`, Gradle TestKit), nightly E2E against a real GitHub repository.
+The default build runs everything. No `@Disabled`, no skipped tests in a passing build.
+
+## 10. Operational limits (D-036)
+
+- **Size.** The single parentless commit bounds the *reachable* history to the current content. Unreachable objects are removed
+  by the host's garbage collection at its own pace, not immediately. Retention (`keepSnapshots`) is the size control in the MVP.
+  Limits of whatever serves the branch are the user's concern; the README notes GitHub's (Pages: about 1 GB site, soft 100 GB/month bandwidth; verify against current GitHub docs). No size
+  budgeting or large-repository optimization until measurements justify it.
+- **HTTP caches (accepted risk).** HTTP caches in front of the branch keep files for a while (Pages CDN about 10 minutes, `raw.githubusercontent.com` a few minutes). A consumer can get cached metadata that names a
+  timestamped file which retention already deleted; the resolution then fails until the cache expires. This needs more than
+  `keepSnapshots` publications of one snapshot inside the cache window. Accepted for the MVP, documented, no grace period.
+  Each published tree is internally consistent (§5 invariants).

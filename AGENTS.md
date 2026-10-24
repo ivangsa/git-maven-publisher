@@ -1,8 +1,26 @@
 # git-maven-publisher
 
-Turns a Git repository into a Maven snapshot repository served by GitHub Pages.
+Turns a Git repository into a Maven snapshot repository, served as static files by whatever the user chooses (raw.githubusercontent.com, GitHub Pages, ...).
 Read before working: `docs/brief.md` (why), `docs/design.md` (contracts), `docs/tasks.md` (what next),
 `docs/decisions.md` (past choices), `docs/questions.md` (open questions).
+
+## Document precedence
+
+Every agent uses this order when documents disagree:
+
+1. `docs/design.md`: contracts. Binding.
+2. `docs/decisions.md`: the newest entry wins. An entry marked "Superseded" or "Revised by" is history for the part it names.
+3. `docs/brief.md`: goals and intent.
+4. `docs/context/*.md`: summaries for a batch. They never override the design.
+5. `docs/tasks.md`: task scope and "Done when" criteria; ticks are claims.
+
+Code comments, commit messages and test names are not sources of truth. When two documents conflict, follow the higher one
+and report the conflict (batch report or review finding). Do not resolve it silently.
+
+## Done rule
+
+A task or batch is done only when the full build passes with no failing and no skipped tests, every review test included.
+Reports state the exact build command that was run and its result.
 
 ## Working agreement
 
@@ -49,7 +67,7 @@ Agents: `implementer`, `mechanic`, `adversarial-reviewer`. Instructions live in 
   - implementer fails a batch: dispatch it once more with the failure in the prompt.
   - fails again: dispatch with the model overridden to opus. If that fails, ask me.
 - Run the adversarial-reviewer subagent after every batch marked "Review" in docs/tasks.md:
-  the end of each phase, after merge + retention, after lease + retry + replay, after Phase 3 retention.
+  the end of each phase, after the plan revision + retention (B06), after lease + retry + replay + conflicts (B10), after Phase 3 retention.
   One review covers the batches since the previous review; do not review each critical batch alone.
   Review findings become new batches before the next phase starts.
 - Batches are strictly sequential. Exactly one subagent (implementer, mechanic or reviewer) runs at a time.
@@ -74,12 +92,12 @@ d="2026-10-24T09:05:00+02:00"; GIT_AUTHOR_DATE="$d" GIT_COMMITTER_DATE="$d" git 
 
 ## Build
 
-- Full build: `./mvnw verify` (core, test-fixtures, maven-plugin), then `./gradlew -p gradle-plugin build` once the Gradle build exists (Phase 2).
-- The default build needs no Docker. `./mvnw verify -Pe2e` adds the Reposilite E2E tests (Testcontainers, needs Docker); CI always runs it.
+- Full build: `./mvnw verify` (one Maven project, `maven-plugin` packaging, D-037), then `./gradlew -p gradle-plugin build` once the Gradle build exists (Phase 2).
+- No Docker, no Testcontainers (D-038).
 - On Windows, run commands through Git Bash.
 
 ## Test oracles
 
-Tests must rely on oracles we do not control: real Maven Resolver deploys, the sequential reference (native deploys one after another vs our concurrent path),
-golden metadata from Maven Central, clean Maven/Gradle consumers over a local HTTP server, and
-concurrent publishers against one bare repo. See `docs/design.md` §9. Do not replace an oracle with a fake.
+Tests must rely on oracles we do not control: real Maven Resolver deploys, the sequential reference (native deploys one after another vs the same output through Git),
+golden metadata from Maven Central, clean Maven/Gradle consumers resolving from a checkout of the pushed branch, real Git lease and replay,
+and deterministic interleaved publishers against one bare repo. See `docs/design.md` §9. Do not replace an oracle with a fake.

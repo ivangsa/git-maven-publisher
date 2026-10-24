@@ -1,36 +1,40 @@
 # Context pack: testing
 
-**Modules:** root build (`pom.xml`, Maven Wrapper 3.10.x, CI) and `test-fixtures/` (Maven, not deployed).
-JUnit 5, AssertJ, Jetty (embedded). `--release 17`. Default build needs no Docker. Profile `e2e` (Reposilite, Testcontainers) needs Docker and always runs in CI (D-014).
+**Location:** the single Maven project (D-037): `pom.xml`, Maven Wrapper 3.10.x, CI in `.github/workflows/`.
+Harness in `src/test/java/io/github/ivangsa/gitpublisher/fixtures/`, golden files in `src/test/resources/golden/`, plugin ITs in `src/it/`.
+JUnit 5, AssertJ, Jetty (only for JGit's HTTP server). `--release 17`. No Docker, no Testcontainers, no Reposilite (D-038).
 
 ## Purpose
-Phase 0 builds the oracles before any production code. Our own tests can confirm our own wrong assumptions,
+Phase 0 built the oracles before any production code. Our own tests can confirm our own wrong assumptions,
 so the harness relies on things we do not control. **Do not replace an oracle with a fake.**
 
 ## Oracles and helpers (design §9)
 | Helper | Oracle | Task |
 | --- | --- | --- |
-| golden files + `fixtures/README.md` (URL, date) | Maven Central metadata, a KMP lib with `.module`, public snapshot repo | T03 |
+| golden files + `golden/README.md` (URL, date) | Maven Central metadata, a KMP lib with `.module`, public snapshot repo | T03 |
 | `MetadataAssertions.assertValidRepository(Path)` | `maven-repository-metadata` parser + design §5 invariants | T04 |
-| `ResolverDeployer` | real Maven Resolver (`maven-resolver-supplier`) deploying to `file://` | T05 |
-| `BareRepo`, `PagesServer` | bare JGit repo on disk + branch checkout; embedded Jetty serving that working tree | T06 |
-| `SequentialReference`, `TreeNormalizer`, `TreeDiff` | **primary oracle**: native deploys one after another into a clean `file://` repo = expected; our concurrent path = actual | T07 |
-| `MavenConsumer` | clean Maven project (Maven Verifier, empty local repo) | T08 |
-| `ConcurrentPublishScenario` | N threads, one bare repo; must catch a broken (no-lease) publisher | T09 |
-| Reposilite E2E (`-Pe2e`) | interop smoke with a real repository manager; not a metadata oracle; CI fails on zero tests | T09b |
-| `LeakScanner` | canary token in logs, dirs, Git config | T10 |
+| `ResolverDeployer` | real Maven Resolver (`maven-resolver-supplier-mvn3`) deploying to `file://`, one session = one `maven.startTime` | T05, R02 |
+| `BareRepo` | bare JGit repo on disk (stands in for GitHub) + exact branch checkout | T06, R09 |
+| `SequentialReference`, `TreeNormalizer`, `TreeDiff` | **primary**: native deploys one after another into a clean `file://` repo = expected; the same output transported through Git = actual | T07 |
+| `MavenConsumer` | clean Maven project (Maven Verifier, empty local repo) resolving from a `file://` checkout of the branch | T08, T56 |
+| `InterleavedPublishScenario` | deterministic: A checks out, B publishes, A pushes; must catch a no-lease publisher | T09, T55 |
 | JGit learning tests | real JGit over `file://` and JGit HTTP server | T11 |
 
+## Concurrency contract under test (design §7, D-032, D-044)
+Interleaved publishers with distinct coordinates and disjoint metadata paths must both end up on the branch.
+Publications sharing a path are outside the contract: tests assert they **fail safely** (conflict, diagnostic, nothing overwritten),
+not that they merge.
+
 ## Invariants every test asserts (design §5)
-snapshotVersions → existing files; versions → existing dirs; `latest`/`release` ∈ versions; checksum files present
-and matching; XML parses with Maven's reader. Branch has exactly one commit.
+snapshotVersions → existing files; `<snapshot>` names a build with files; versions → non-empty dirs; `latest`/`release` ∈ versions;
+checksum files present and matching; XML parses with Maven's reader. Branch has exactly one commit.
 
 ## Rules
 - Every harness helper has a self-test that proves it detects the failure it is meant to catch.
-- Tests: `*Test` (surefire), `*IT` (failsafe), `*E2E` (profile `e2e`). No `@Disabled`.
+- Tests: `*Test` (surefire), `*IT` (failsafe), invoker ITs in `src/it`. No `@Disabled`, no skipped tests.
 - Why no repository-manager oracle: in a Maven deploy the client computes metadata, the server only stores files.
 - Review tests under `src/test/.../review/` are never edited by implementers.
 
 ## Files that matter
-`docs/design.md` §1 and §9, `pom.xml`, `test-fixtures/src/main/java/`, `test-fixtures/src/main/resources/golden/`,
+`docs/design.md` §1 and §9, `pom.xml`, `src/test/java/io/github/ivangsa/gitpublisher/fixtures/`, `src/test/resources/golden/`,
 `.github/workflows/`.
