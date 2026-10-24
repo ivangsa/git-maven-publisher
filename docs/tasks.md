@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 0 done (T00-T11, T09b; review 2026-10-24-f65192f fixed by R01-R07) · Last finished: BR3 (R05, R06, R07) · Next: B04 (T12, T13, T14, T17)
+**Status:** Phase 0 revalidation FIX FIRST ([review 32f382a](reviews/2026-10-24-32f382a.md)); T06, T09, T10, R04, R05 reopened · Last finished: Phase 0 revalidation · Next: BR4 (R08, R09, R10), before B04
 
 ## Batches
 
@@ -11,12 +11,13 @@ Inside a batch, tasks run in the order listed (B04 does T17 before T15/T16 so me
 
 | Batch | Tasks | Agent | Context pack | Review | Status |
 | --- | --- | --- | --- | --- | --- |
-| B01 | T01, T02, T03, T10 | mechanic | testing | | done |
-| B02 | T04, T05, T06, T11 | implementer | testing | | done |
-| B03 | T07, T08, T09, T09b | implementer | testing | yes (end of Phase 0) | done |
+| B01 | T01, T02, T03, T10 | mechanic | testing | | revalidation failed (R10) |
+| B02 | T04, T05, T06, T11 | implementer | testing | | revalidation failed (R09) |
+| B03 | T07, T08, T09, T09b | implementer | testing | yes (end of Phase 0) | revalidation failed (R08) |
 | BR1 | R01, R02 | implementer | testing | | done |
-| BR2 | R03, R04 | implementer | testing, core | | done |
-| BR3 | R05, R06, R07 | implementer | testing | | done |
+| BR2 | R03, R04 | implementer | testing, core | | revalidation failed (R08) |
+| BR3 | R05, R06, R07 | implementer | testing | | revalidation failed (R10) |
+| BR4 | R08, R09, R10; restore failed claims T06, T09, T10, R04, R05 | implementer | testing | yes (Phase 0 revalidation fixes) | todo |
 | B04 | T12, T13, T14, T17 | implementer | core | | todo |
 | B05 | T15 (metadata merge) | implementer | core | | todo |
 | B06 | T16 (retention) | implementer | core | yes (merge + retention) | todo |
@@ -60,7 +61,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T05 Resolver deployer harness
   `ResolverDeployer` deploys jar, pom, sources, classifier and `.module` artifacts to a `file://` directory with `maven-resolver-supplier`, configurable checksum algorithms.
   Done when: three deploys of the same snapshot produce build numbers 1..3 and a tree that passes `MetadataAssertions`.
-- [x] T06 Bare repo and Pages server harness
+- [!] T06 Bare repo and Pages server harness ([review F2](reviews/2026-10-24-32f382a.md), R09)
   `BareRepo` (create on disk, read branch tree, count commits on branch, check out the branch tip into a working tree) and `PagesServer` (embedded Jetty serving a directory as static files).
   Done when: a test commits a file with JGit, checks out the branch tip and downloads the file through `PagesServer`; a missing path returns 404.
 - [x] T07 Sequential reference oracle
@@ -69,13 +70,13 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T08 Clean Maven consumer harness
   `MavenConsumer` runs a template consumer project with Maven Verifier, empty local repo, repository URL = `PagesServer` serving a checkout of the branch.
   Done when: an artifact deployed by `ResolverDeployer`, committed to a bare repo, is resolved by the consumer; a missing artifact makes it fail.
-- [x] T09 Concurrency harness
+- [!] T09 Concurrency harness ([review F1](reviews/2026-10-24-32f382a.md), R08)
   `ConcurrentPublishScenario`: N threads, barrier start, mix of shared and distinct coordinates, pluggable publisher; final check with `MetadataAssertions` and "every deployed file present".
   Done when: a deliberately broken publisher (force push, no lease) is detected as losing files, and a global-lock reference publisher passes and matches `SequentialReference` via `TreeDiff`.
 - [x] T09b Reposilite E2E profile
   Maven profile `e2e`: Testcontainers Reposilite, `ResolverDeployer` deploys over HTTP, `MavenConsumer` resolves from it. CI runs `./mvnw verify -Pe2e` and a step fails the job if the profile executed zero tests.
   Done when: `./mvnw verify -Pe2e` passes locally with Docker; CI green; removing the E2E test makes CI fail.
-- [x] T10 Credential leak scanner
+- [!] T10 Credential leak scanner ([review F3](reviews/2026-10-24-32f382a.md), R10)
   `LeakScanner` checks captured logs, a directory tree and any Git config for a canary string.
   Done when: self-test detects a planted canary in each location and passes on a clean run.
 - [x] T11 JGit learning tests
@@ -226,13 +227,25 @@ Review tests live in `test-fixtures/src/test/java/io/github/ivangsa/gitpublisher
 - [x] R03 Tree ref is a hint, not a lease (design only, F3)
   Design §4.5 and D-020: push `refs/publisher/tree` without a lease on it (or with the fetched id) and ignore its status; only the branch status decides OK/retry. Extend T20 "Done when" with: branch exists without the tree ref → publish succeeds in one attempt.
   Done when: design, decisions and T20 updated.
-- [x] R04 Same-snapshot concurrency: build number collisions and reference order (F4)
+- [!] R04 Same-snapshot concurrency: build number collisions and reference order (F4; [revalidation F1](reviews/2026-10-24-32f382a.md), R08)
   Design §7: replay renumbers a colliding build to remote max + 1 (or another recorded decision). Harness: unique content per publication in `ConcurrentPublishScenario`; record push order and replay that order in `assertMatchesSequentialReference`.
   Done when: design/decisions updated; a harness self-test shows two same-second publications of one snapshot are no longer counted as "nothing lost".
-- [x] R05 LeakScanner detects encoded tokens; e2e profile hygiene (F5, F8)
+- [!] R05 LeakScanner detects encoded tokens; e2e profile hygiene (F5, F8; [revalidation F3](reviews/2026-10-24-32f382a.md), R10)
   Base64 (basic auth, three alignments) and URL-encoded canary in text, trees and Git config. E2E as a separate failsafe execution so `*IT` still runs under `-Pe2e`; CI guard counts `tests - skipped`.
   Done when: `R05LeakScannerBasicAuthTest` passes.
 - [x] R06 TreeNormalizer normalizes `.module` contents (minor, F6)
   Done when: `R06TreeNormalizerModuleFileTest` passes.
 - [x] R07 Version directory must not be empty (minor, F7)
   Done when: `R07EmptyVersionDirectoryTest` passes.
+
+From [review 2026-10-24-32f382a](reviews/2026-10-24-32f382a.md) (Phase 0 revalidation, verdict FIX FIRST). All before B04.
+
+- [ ] R08 Accept valid collision renumbering in concurrency loss checks (major, F1)
+  Track each publication through permitted build renames without accepting collapse, wrong content, or missing files.
+  Done when: `R08RenumberedPublicationTest` passes, independent sequential comparison still passes, and existing broken-publisher loss checks still detect loss. Restore T09/R04 only after the full build passes.
+- [ ] R09 Materialize an exact branch checkout on reused destinations (major, F2)
+  Remove stale paths and handle file/directory transitions when checking out the branch tip.
+  Done when: `R09ExactBranchCheckoutTest` passes, Pages serves only current branch files, and existing checkout/404 checks pass. Restore T06 only after the full build passes.
+- [ ] R10 Redact encoded credentials from scanner diagnostics (minor, F3)
+  Cover source labels and entry paths as well as raw canaries; diagnostics must not echo reversible encoded forms.
+  Done when: both `R10EncodedFindingRedactionTest` cases and all prior scanner tests pass. Restore T10/R05 only after the full build passes.
