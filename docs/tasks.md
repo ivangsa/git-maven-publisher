@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP), except T45 [?] (Q12, Plugin Portal key) and R35 [?] (Q13, composite builds) · validation cadence D-092 · next: maintainer answers Q12/Q13, develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 (BR15) before B20
+**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP), except T45 [?] (Q12, Plugin Portal key) and R35 [?] (Q13, composite builds) · validation cadence D-092 · next: maintainer answers Q12/Q13, develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20
 
 ## Batches
 
@@ -54,7 +54,7 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | B19 | T47, T48 (retention) | implementer | core | yes (retention) | done |
 | BR13 | R36, R37, R38, R39, R40 (keepVersions keeps touched versions, https release check, release repository in Maven and Gradle, check cost, design wording) | implementer | core, maven-plugin, gradle-plugin | yes (re-review of BR13) | done |
 | BR14 | R41 (Maven Wrapper runs on native Windows under PowerShell 5.1 and 7, D-108; restores T01) | mechanic | - | yes (re-review of BR13, BR14) | done |
-| BR15 | R42 (release repository URL with a query or fragment) | implementer | core | yes (re-review of BR15) | todo |
+| BR15 | R42 (release repository URL with a query or fragment) | implementer | core | yes (re-review of BR15) | done |
 | B20 | T49 | implementer | maven-plugin, gradle-plugin | | todo |
 | B21 | T50, T51, T52 | mechanic | testing | yes (end of Phase 3) | todo (T51 needs Q7) |
 | manual | T33 | maintainer | - | | after T32b (self-publication part after the repo is public, D-074); not dispatched to an agent |
@@ -480,7 +480,7 @@ From [review 2026-10-25-3044006](reviews/2026-10-25-3044006.md) (committed-code 
 From [review 2026-10-25-20d7325](reviews/2026-10-25-20d7325.md) (re-review of BR13 and BR14, verdict FIX FIRST).
 Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R42ReleaseRepositoryQueryReviewTest.java`.
 
-- [ ] R42 A release repository URL with a query or fragment never makes the repository root count as a release (minor, F1)
+- [x] R42 A release repository URL with a query or fragment never makes the repository root count as a release (minor, F1)
   `ReleaseCheck.exists` appends the POM path to the whole URL string, so `?sig=...` or `#x` sends `HEAD <repo root>`; a non-HTML 200 there
   drops every untouched `-SNAPSHOT` version. Reject such URLs in `RetentionPolicy` (message without the value) or resolve the POM path against
   the URL's path; record the choice in decisions.

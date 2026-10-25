@@ -50,6 +50,9 @@ public record RetentionPolicy(int keepSnapshots, int keepVersions, URI releaseRe
             if (releaseRepository.getRawUserInfo() != null) {
                 throw new IllegalArgumentException("releaseRepository must not contain credentials");
             }
+            if (releaseRepository.getRawQuery() != null || releaseRepository.getRawFragment() != null) {
+                throw new IllegalArgumentException("releaseRepository must not contain a query or a fragment");
+            }
         }
     }
 

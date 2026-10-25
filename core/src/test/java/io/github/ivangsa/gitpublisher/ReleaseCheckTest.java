@@ -88,9 +88,8 @@ class ReleaseCheckTest {
     }
 
     @Test
-    void aFailureIsAskedAndLoggedOnceWithoutTheQuery() throws Exception {
-        URI repository = serve(500, null);
-        URI withQuery = URI.create(repository + "?token=secret");
+    void aFailureIsAskedAndLoggedOnce() throws Exception {
+        URI withQuery = serve(500, null);
         ReleaseCheck check = new ReleaseCheck(log);
 
         assertThat(check.exists(withQuery, "org/acme", "lib", "1.0")).isFalse();
@@ -111,6 +110,45 @@ class ReleaseCheckTest {
         ReleaseCheck html = new ReleaseCheck(log);
         assertThat(html.exists(serve(200, "text/html; charset=utf-8"), "org/acme", "lib", "1.0")).isFalse();
         assertThat(warnings).hasSize(1).allSatisfy(w -> assertThat(w).contains("HTML"));
+    }
+
+    @Test
+    void theServerSeesTheExactPomPath() throws Exception {
+        List<String> paths = new ArrayList<>();
+        server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            paths.add(exchange.getRequestMethod() + " " + exchange.getRequestURI());
+            exchange.getResponseHeaders().add("Content-Type", "application/xml");
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        server.start();
+        String base = "http://localhost:" + server.getAddress().getPort();
+
+        assertThat(new ReleaseCheck(log).exists(URI.create(base + "/maven2/"), "org/acme", "lib", "1.0")).isTrue();
+        assertThat(new ReleaseCheck(log).exists(URI.create(base + "/maven2"), "org/acme", "lib", "1.0")).isTrue();
+
+        assertThat(paths)
+                .containsExactly(
+                        "HEAD /maven2/org/acme/lib/1.0/lib-1.0.pom", "HEAD /maven2/org/acme/lib/1.0/lib-1.0.pom");
+    }
+
+    @Test
+    void aQueryOrFragmentIsNeverAskedAndPolicyRejectsItWithoutEchoingIt() throws Exception {
+        URI repository = serve(200, "application/xml");
+        ReleaseCheck check = new ReleaseCheck(log);
+
+        assertThat(check.exists(URI.create(repository + "?token=secret"), "org/acme", "lib", "1.0"))
+                .isFalse();
+        assertThat(check.exists(URI.create(repository + "#frag"), "org/acme", "lib", "1.0"))
+                .isFalse();
+        assertThat(requests.get()).isZero();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new RetentionPolicy(
+                        3, RetentionPolicy.UNLIMITED, URI.create("https://repo.example.org/m2/?token=secret")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("query")
+                .hasMessageNotContaining("secret");
     }
 
     @Test

@@ -940,3 +940,10 @@ Newest last. Format: date · decision · reason · alternatives rejected.
 - **Rejected:** regenerating with 3.3.4 (same bug); replacing the wrapper with a different one; a `try/catch` around the lookup (hides a real link target); changing `MAVEN_USER_HOME` handling.
 - **Note:** `./mvnw wrapper:wrapper` or a wrapper upgrade overwrites this patch; re-apply it or check `mvnw.cmd` after any regeneration.
 - **Reason for the batch:** review 2026-10-25-3044006 (FIX FIRST), R41 (BR14).
+
+## D-109 A release repository URL has no query or fragment (R42, F1)
+- **Decision:** `RetentionPolicy` rejects a `releaseRepository` with a query or a fragment (`IllegalArgumentException`, message "releaseRepository must not contain a query or a fragment", never the value), next to the existing scheme and userinfo checks. `ReleaseCheck.exists` also answers "no" without a request for such a URL, so a caller that skips the policy cannot ask the repository root in place of the POM. Design sections 4 (option table) and 6 say so.
+- **Reason:** review 2026-10-25-20d7325 F1. Appending `/<groupPath>/...pom` to the whole string put the path into the query or fragment and sent `HEAD /maven2/`; a non-HTML 200 there made every untouched `-SNAPSHOT` version look released.
+- **Why reject, not resolve:** a query (signed URL, token) is a credential in the same class as userinfo, which is already rejected; keeping it would mean sending it on every HEAD and following redirects with it. Failing at configuration is loud and cheap; a repository that needs a signed query cannot be laid out as a Maven directory tree anyway.
+- **Rejected:** resolving the POM path against the URL path and keeping the query (secret in requests, redirect leaks).
+- **Evidence:** `R42ReleaseRepositoryQueryReviewTest`; `ReleaseCheckTest.theServerSeesTheExactPomPath` (JDK in-process server records `HEAD /maven2/org/acme/lib/1.0/lib-1.0.pom`, with and without trailing slash) and `aQueryOrFragmentIsNeverAskedAndPolicyRejectsItWithoutEchoingIt`. The older `ReleaseCheckTest` case that passed a query no longer does.

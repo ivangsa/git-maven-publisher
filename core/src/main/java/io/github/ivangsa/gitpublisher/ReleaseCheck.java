@@ -55,6 +55,9 @@ final class ReleaseCheck {
     boolean exists(URI repository, String groupPath, String artifactId, String base) {
         String relative = groupPath + "/" + artifactId + "/" + base + "/" + artifactId + "-" + base + ".pom";
         URI target;
+        if (repository.getRawQuery() != null || repository.getRawFragment() != null) {
+            return false; // RetentionPolicy rejects these (D-109); never ask the root in place of the POM
+        }
         try {
             String root = repository.toString();
             target = URI.create(root.endsWith("/") ? root + relative : root + "/" + relative);
