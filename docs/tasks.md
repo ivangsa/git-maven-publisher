@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · BR17 failed review verification (R43/R46), fixed by BR18 (D-113) · next: re-review BR17 and BR18, develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111); re-review 2026-10-25-a3707d0 FIX FIRST: R43-R45 open before B20
+**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · BR17 failed review verification (R43/R46), fixed by BR18 (D-113) · next: R47 (fix batch), develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111); re-review 2026-10-25-a3707d0 FIX FIRST: R43-R45 done (BR17, BR18); re-review 2026-10-25-4de4033 FIX FIRST: R47 open before B20
 
 ## Batches
 
@@ -515,3 +515,12 @@ Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R46Releas
   the POM path and release-aware cleanup retains `1.0@rc-SNAPSHOT` forever. Reject only characters that could alter
   the URL path, or percent-encode every valid path segment; retain R43's no-request behavior for `?` and `#`.
   Done when: `R43ReleaseCheckPathSegmentReviewTest` and `R46ReleaseCheckValidMavenVersionReviewTest` pass, then the full build passes.
+
+From [review 2026-10-25-4de4033](reviews/2026-10-25-4de4033.md) (re-review of BR17 and BR18, verdict FIX FIRST).
+Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R47ReleaseCheckPathParameterReviewTest.java`.
+
+- [ ] R47 The release check quotes `;` so a servlet-container repository cannot drop it as a path parameter (minor, F1)
+  The URI constructor leaves `;` literal; Tomcat/Jetty (Nexus, Artifactory) strip `;...` from a segment, so the group directory `acme;rc` asks
+  `org/acme;rc/lib/1.0/lib-1.0.pom`, the server answers the POM of `org.acme:lib:1.0`, and the unreleased `1.0-SNAPSHOT` of `org.acme;rc` is deleted.
+  Quote `;` as `%3B` in every segment, or answer "no" without a request for a segment containing it; correct D-113's "exactly one segment" claim.
+  Done when: `R47ReleaseCheckPathParameterReviewTest`, R43 and R46 pass, then the full build passes.
