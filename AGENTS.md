@@ -39,7 +39,7 @@ Nothing is pushed before that build passes (D-092). Reports state the exact buil
 - Record every non-trivial technical choice in docs/decisions.md.
 - If the design turns out wrong, update docs/design.md and explain in decisions.md.
   Do not silently diverge from the design.
-- Java 17. Apache 2.0. groupId io.github.ivangsa.
+- Java 17. MIT. groupId io.github.ivangsa.
 - Never log credentials, never write them into files or Git config.
 
 ## Reviews

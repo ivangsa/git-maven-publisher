@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright 2026 Ivan Garcia Sainz-Aja
-# Licensed under the Apache License, Version 2.0 (the "License");
-# see the LICENSE file in the project root.
+# Copyright (c) 2026 ZenWave's Authors and Contributors
+#
+# Licensed under the MIT License; see the LICENSE file in the project root.
 """Checks a Maven Central bundle produced by `./mvnw -Prelease deploy -Dcentral.skipUpload=true` (T32a, D-072).
 
 Usage (run with -I, see docs/decisions.md D-077):

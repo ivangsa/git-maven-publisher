@@ -216,4 +216,4 @@ GitHub's limits are the ones of whatever serves the branch. For GitHub Pages, th
 
 ## License
 
-Apache License 2.0, see [LICENSE](LICENSE).
+MIT License, see [LICENSE](LICENSE).
