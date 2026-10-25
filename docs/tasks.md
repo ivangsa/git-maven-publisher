@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 fixed and re-reviewed (no findings); repo public; T61 branch model on (agents push to `develop`) · BP5 (T60 self-publication) done, first publication run on `develop` reported in the batch report · Phase 2: B15 done (T34-T37), B16 done (T38-T40), B17 done (T41, T42), B18 partial (T44 done, T45 [?] Q12), B18b done (T43) on `develop`; BR9 done (R26, R29; T36 restored) · BR10 done (R27, R28, R30, R31; T44 restored) · re-review of BR9, BR10 next
+**Status:** Phase 1 fixed and re-reviewed (no findings); repo public; T61 branch model on (agents push to `develop`) · BP5 (T60 self-publication) done, first publication run on `develop` reported in the batch report · Phase 2: B15 done (T34-T37), B16 done (T38-T40), B17 done (T41, T42), B18 partial (T44 done, T45 [?] Q12), B18b done (T43) on `develop`; BR9 done (R26, R29; T36 restored) · BR10 done (R27, R28, R30, R31; T44 restored) · re-review of BR9, BR10: FIX FIRST (review 53fd0c7, R32)
 
 ## Batches
 
@@ -233,7 +233,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T35 Extension and repository
   `gitMavenPublisher` extension (design §2), registers `gitPublisher` Maven repository.
   Done when: TestKit test shows the repository and publish tasks for a `java-library` project.
-- [x] T36 BuildService and lifecycle tasks ([review 2026-10-25-8439f3c](reviews/2026-10-25-8439f3c.md), F1, R26)
+- [!] T36 BuildService and lifecycle tasks ([review 2026-10-25-8439f3c](reviews/2026-10-25-8439f3c.md), F1, R26; [review 2026-10-25-53fd0c7](reviews/2026-10-25-53fd0c7.md), F1, R32)
   `GitPublisherService`, `gitPublisherCheckout`, guarded `gitPublisherPush` per design §2 (Gradle) and D-033; no unconditional finalizer, no publishing in `close()`. Record the mechanism in decisions.
   Done when: TestKit: a multi-project build (3 projects) yields exactly one commit and a valid tree; a failing participant yields no push, also with `--continue`;
   with `--parallel` push never starts before every participant finished; publishing one selected subproject works.
@@ -391,7 +391,7 @@ Review performed on `review/phase1-be6b417`; uncommitted BP4/T59 work is exclude
 From [review 2026-10-25-8439f3c](reviews/2026-10-25-8439f3c.md) (end of Phase 2, verdict FIX FIRST).
 Review test: `gradle-plugin/src/test/java/io/github/ivangsa/gitpublisher/gradle/review/R26LateParticipantFailureReviewTest.java`.
 
-- [x] R26 A participant that fails after its publish action must not be pushed (major, F1)
+- [!] R26 A participant that fails after its publish action must not be pushed (major, F1; [review 2026-10-25-53fd0c7](reviews/2026-10-25-53fd0c7.md), F1, R32)
   Record a participant's success only when the task as a whole succeeded (no action of the task may run after the record); configuration cache kept.
   Done when: `R26LateParticipantFailureReviewTest` passes (default and `--continue`), all lifecycle and configuration-cache tests pass and the full build passes. Restore T36.
 - [x] R27 Publish the Gradle plugin only after core is on Central (major, F2)
@@ -411,3 +411,13 @@ Review test: `gradle-plugin/src/test/java/io/github/ivangsa/gitpublisher/gradle/
 - [x] R31 Self-publication consumer checks the build just pushed (minor, F7)
   The consumer job compares the resolved snapshot (timestamp/build number in `maven-metadata.xml` or the pushed commit) with the `publish` job's output.
   Done when: `actionlint` passes and the job fails when the branch still serves an older build of the version.
+
+From [review 2026-10-25-53fd0c7](reviews/2026-10-25-53fd0c7.md) (re-review of BR9, BR10, verdict FIX FIRST).
+Review test: `gradle-plugin/src/test/java/io/github/ivangsa/gitpublisher/gradle/review/R32LateWhenReadyActionReviewTest.java`.
+
+- [ ] R32 A participant action added in a later `taskGraph.whenReady` must not run after the success record (major, F1)
+  The record must fail closed: a participant whose last action is not the record (for example, `RecordSuccess` checks `task.getActions()` at
+  execution time, with one record action per participant instead of one per project applying the plugin) stays unrecorded, so D-098 refuses
+  the push; or another mechanism that sees the task's final outcome before the finalizer. Configuration cache kept. Correct the D-097 claim.
+  Done when: `R32LateWhenReadyActionReviewTest` passes (default, `--continue`, `--configuration-cache`), `R26LateParticipantFailureReviewTest` and all
+  lifecycle and configuration-cache tests pass and the full build passes. Restore T36 and R26.
