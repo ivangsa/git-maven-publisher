@@ -1,6 +1,6 @@
 pluginManagement {
     repositories {
-        maven { url = uri('https://www.zenwave.io/maven-snapshots/') }
+        maven { url = uri('https://raw.githubusercontent.com/zenwave360/maven-snapshots/gh-pages/') }
         gradlePluginPortal()
     }
 }

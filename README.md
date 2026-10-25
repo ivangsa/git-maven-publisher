@@ -121,7 +121,7 @@ Releases of the plugin are published to Maven Central only (the plugin jar and i
 ```groovy settings.gradle
 pluginManagement {
     repositories {
-        maven { url = uri('https://www.zenwave.io/maven-snapshots/') }
+        maven { url = uri('https://raw.githubusercontent.com/zenwave360/maven-snapshots/gh-pages/') }
         gradlePluginPortal()
     }
 }

@@ -136,7 +136,6 @@ jobs:
     env:
       PLUGIN_VERSION: ${{ needs.publish.outputs.version }}
       SNAPSHOTS_URL: https://raw.githubusercontent.com/zenwave360/maven-snapshots/gh-pages/
-      PAGES_URL: https://www.zenwave.io/maven-snapshots/
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -192,15 +191,15 @@ jobs:
           done
 
       # The Gradle plugin is resolved the way the README tells users to: by its id, with the snapshots repository and the Plugin Portal
-      # in pluginManagement (T45, D-111). GitHub Pages serves gh-pages at www.zenwave.io/maven-snapshots/; Pages may lag the push,
-      # so the same wait as above (R31, D-102) runs against that URL, for the plugin jar and its marker.
-      - name: Check that the snapshots site serves the Gradle plugin build just pushed
+      # in pluginManagement (T45, D-111). The URL is the branch on raw.githubusercontent.com (www.zenwave.io/maven-snapshots/ is not
+      # served by GitHub Pages: the domain answers 404). The same wait as above (R31, D-102) runs for the plugin jar and its marker.
+      - name: Check that the branch serves the Gradle plugin build just pushed
         env:
           GRADLE_PLUGIN_BUILD: ${{ needs.publish.outputs.gradle-plugin-build }}
           GRADLE_MARKER_BUILD: ${{ needs.publish.outputs.gradle-marker-build }}
         run: |
           served_build() {
-            curl --silent --show-error --fail --location "${PAGES_URL}$1/${PLUGIN_VERSION}/maven-metadata.xml" \
+            curl --silent --show-error --fail --location "${SNAPSHOTS_URL}$1/${PLUGIN_VERSION}/maven-metadata.xml" \
               | sed -n 's#.*<buildNumber>\([0-9][0-9]*\)</buildNumber>.*#\1#p' | head -n 1
           }
           plugin_path=io/github/ivangsa/git-maven-publisher-gradle-plugin
@@ -209,27 +208,27 @@ jobs:
             plugin="$(served_build "${plugin_path}" || true)"
             marker="$(served_build "${marker_path}" || true)"
             if [ "${plugin:-0}" -ge "${GRADLE_PLUGIN_BUILD}" ] && [ "${marker:-0}" -ge "${GRADLE_MARKER_BUILD}" ]; then
-              echo "${PAGES_URL} serves Gradle plugin build ${plugin} and marker build ${marker}; published: ${GRADLE_PLUGIN_BUILD} and ${GRADLE_MARKER_BUILD}."
+              echo "${SNAPSHOTS_URL} serves Gradle plugin build ${plugin} and marker build ${marker}; published: ${GRADLE_PLUGIN_BUILD} and ${GRADLE_MARKER_BUILD}."
               exit 0
             fi
-            echo "Attempt ${attempt}: the site serves plugin ${plugin:-none} and marker ${marker:-none}; expected at least ${GRADLE_PLUGIN_BUILD} and ${GRADLE_MARKER_BUILD}. Waiting for Pages."
+            echo "Attempt ${attempt}: the branch serves plugin ${plugin:-none} and marker ${marker:-none}; expected at least ${GRADLE_PLUGIN_BUILD} and ${GRADLE_MARKER_BUILD}. Waiting for the cache."
             sleep 30
           done
-          echo "${PAGES_URL} still serves an older Gradle plugin build of ${PLUGIN_VERSION} than the one just pushed (${GRADLE_PLUGIN_BUILD}, marker ${GRADLE_MARKER_BUILD})." >&2
+          echo "${SNAPSHOTS_URL} still serves an older Gradle plugin build of ${PLUGIN_VERSION} than the one just pushed (${GRADLE_PLUGIN_BUILD}, marker ${GRADLE_MARKER_BUILD})." >&2
           exit 1
 
       # Empty Gradle user home. The project uses the pluginManagement block of the README; the plugin id has a version that exists
-      # only as a snapshot, so a successful application proves the marker and the jar come from the published site. The build file
+      # only as a snapshot, so a successful application proves the marker and the jar come from the published branch. The build file
       # fails when the extension of the plugin is missing and prints the jar it loaded; the next step compares that jar with the one
-      # the site serves now.
-      - name: Apply the Gradle plugin by its id from the published site
+      # the branch serves now.
+      - name: Apply the Gradle plugin by its id from the published branch
         run: |
           project="${RUNNER_TEMP}/gradle-consumer"
           mkdir -p "${project}"
           printf '%s\n' \
             "pluginManagement {" \
             "    repositories {" \
-            "        maven { url = uri('${PAGES_URL}') }" \
+            "        maven { url = uri('${SNAPSHOTS_URL}') }" \
             "        gradlePluginPortal()" \
             "    }" \
             "}" \
@@ -250,16 +249,16 @@ jobs:
           fi
           echo "PLUGIN_JAR_PATH=${jar}" >> "${GITHUB_ENV}"
 
-      - name: Check that the plugin jar is the one the site serves
+      - name: Check that the plugin jar is the one the branch serves
         env:
           GRADLE_PLUGIN_BUILD: ${{ needs.publish.outputs.gradle-plugin-build }}
         run: |
-          plugin_url="${PAGES_URL}io/github/ivangsa/git-maven-publisher-gradle-plugin/${PLUGIN_VERSION}/"
+          plugin_url="${SNAPSHOTS_URL}io/github/ivangsa/git-maven-publisher-gradle-plugin/${PLUGIN_VERSION}/"
           metadata="$(curl --silent --show-error --fail --location "${plugin_url}maven-metadata.xml")"
           timestamp="$(printf '%s\n' "${metadata}" | sed -n 's#.*<timestamp>\([0-9.]*\)</timestamp>.*#\1#p' | head -n 1)"
           build="$(printf '%s\n' "${metadata}" | sed -n 's#.*<buildNumber>\([0-9][0-9]*\)</buildNumber>.*#\1#p' | head -n 1)"
           if [ -z "${timestamp}" ] || [ -z "${build}" ] || [ "${build}" -lt "${GRADLE_PLUGIN_BUILD}" ]; then
-            echo "The site serves build ${build:-none}; the build just pushed is ${GRADLE_PLUGIN_BUILD}." >&2
+            echo "The branch serves build ${build:-none}; the build just pushed is ${GRADLE_PLUGIN_BUILD}." >&2
             exit 1
           fi
           served="git-maven-publisher-gradle-plugin-${PLUGIN_VERSION%-SNAPSHOT}-${timestamp}-${build}.jar"
@@ -269,4 +268,4 @@ jobs:
             echo "The plugin jar the consumer loaded (${actual}) is not ${served} (${expected})." >&2
             exit 1
           fi
-          echo "The consumer applied ${served} (sha1 ${actual}) from ${PAGES_URL}."
+          echo "The consumer applied ${served} (sha1 ${actual}) from ${SNAPSHOTS_URL}."
