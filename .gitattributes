@@ -4,3 +4,6 @@ test-fixtures/src/main/resources/golden/** -text
 # Wrapper scripts must keep their line endings on every platform.
 gradlew text eol=lf
 *.bat text eol=crlf
+
+# The README setup build is compared byte for byte with the README block (ReadmeGradleSnippetsTest, D-094, D-099).
+gradle-plugin/src/test/resources/readme/build.gradle text eol=lf

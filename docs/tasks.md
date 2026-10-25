@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 fixed and re-reviewed (no findings); repo public; T61 branch model on (agents push to `develop`) · BP5 (T60 self-publication) done, first publication run on `develop` reported in the batch report · Phase 2: B15 done (T34-T37), B16 done (T38-T40), B17 done (T41, T42), B18 partial (T44 done, T45 [?] Q12), B18b done (T43) on `develop`
+**Status:** Phase 1 fixed and re-reviewed (no findings); repo public; T61 branch model on (agents push to `develop`) · BP5 (T60 self-publication) done, first publication run on `develop` reported in the batch report · Phase 2: B15 done (T34-T37), B16 done (T38-T40), B17 done (T41, T42), B18 partial (T44 done, T45 [?] Q12), B18b done (T43) on `develop`; BR9 done (R26, R29; T36 restored) · BR10 done (R27, R28, R30, R31; T44 restored) · re-review of BR9, BR10 next
 
 ## Batches
 
@@ -47,6 +47,8 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | B17 | T41, T42 | implementer | gradle-plugin, testing | | done |
 | B18 | T43, T44, T45 | mechanic | gradle-plugin | | partial: T44 done; T43 needs-implementer (D-093), moved to B18b; T45 [?] (Q12) |
 | B18b | T43 (Gradle 8.x configuration-cache scan, D-093, D-096) | implementer | gradle-plugin, testing | yes (end of Phase 2) | done |
+| BR9 | R26, R29 (Gradle participant failure and skip; restores T36) | implementer | gradle-plugin, testing | | done |
+| BR10 | R28, R27, R30, R31 (line endings, Gradle release gate, docs, self-publication consumer; restores T44) | mechanic | gradle-plugin | yes (re-review of BR9, BR10) | done |
 | B19 | T47, T48 (retention) | implementer | core | yes (retention) | todo |
 | B20 | T49 | implementer | maven-plugin, gradle-plugin | | todo |
 | B21 | T50, T51, T52 | mechanic | testing | yes (end of Phase 3) | todo (T51 needs Q7) |
@@ -231,7 +233,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T35 Extension and repository
   `gitMavenPublisher` extension (design §2), registers `gitPublisher` Maven repository.
   Done when: TestKit test shows the repository and publish tasks for a `java-library` project.
-- [!] T36 BuildService and lifecycle tasks ([review 2026-10-25-8439f3c](reviews/2026-10-25-8439f3c.md), F1, R26)
+- [x] T36 BuildService and lifecycle tasks ([review 2026-10-25-8439f3c](reviews/2026-10-25-8439f3c.md), F1, R26)
   `GitPublisherService`, `gitPublisherCheckout`, guarded `gitPublisherPush` per design §2 (Gradle) and D-033; no unconditional finalizer, no publishing in `close()`. Record the mechanism in decisions.
   Done when: TestKit: a multi-project build (3 projects) yields exactly one commit and a valid tree; a failing participant yields no push, also with `--continue`;
   with `--parallel` push never starts before every participant finished; publishing one selected subproject works.
@@ -254,7 +256,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T43 Gradle version matrix
   CI matrix over the latest Gradle 8.x and the latest 9.x.
   Done when: all legs green.
-- [!] T44 Gradle user docs ([review 2026-10-25-8439f3c](reviews/2026-10-25-8439f3c.md), F3, R28)
+- [x] T44 Gradle user docs ([review 2026-10-25-8439f3c](reviews/2026-10-25-8439f3c.md), F3, R28; restored by R28)
   Done when: README Gradle snippets are copied from passing TestKit builds.
 - [?] T45 Plugin Portal publishing (see Q12)
   Plugin marker and portal config.
@@ -389,23 +391,23 @@ Review performed on `review/phase1-be6b417`; uncommitted BP4/T59 work is exclude
 From [review 2026-10-25-8439f3c](reviews/2026-10-25-8439f3c.md) (end of Phase 2, verdict FIX FIRST).
 Review test: `gradle-plugin/src/test/java/io/github/ivangsa/gitpublisher/gradle/review/R26LateParticipantFailureReviewTest.java`.
 
-- [ ] R26 A participant that fails after its publish action must not be pushed (major, F1)
+- [x] R26 A participant that fails after its publish action must not be pushed (major, F1)
   Record a participant's success only when the task as a whole succeeded (no action of the task may run after the record); configuration cache kept.
   Done when: `R26LateParticipantFailureReviewTest` passes (default and `--continue`), all lifecycle and configuration-cache tests pass and the full build passes. Restore T36.
-- [ ] R27 Publish the Gradle plugin only after core is on Central (major, F2)
+- [x] R27 Publish the Gradle plugin only after core is on Central (major, F2)
   `release-from-notes.yml` job `gradle-plugin` runs while the Central deployment (`autoPublish` false) is unpublished. Gate `publishPlugins` on core X being
   resolvable from Central (check step that fails, or a separate maintainer-dispatched step after the Central publish); fix the workflow comment; record in decisions.
   Done when: `actionlint` passes and the workflow cannot reach `publishPlugins` while `git-maven-publisher-core:X` is absent from Central.
-- [ ] R28 README Gradle snippet test independent of line endings (minor, F3)
+- [x] R28 README Gradle snippet test independent of line endings (minor, F3)
   Normalize both sides in `ReadmeGradleSnippetsTest` or pin `gradle-plugin/src/test/resources/readme/build.gradle` to `eol=lf`; record the test edit in decisions.
   Done when: the Gradle build passes in a fresh Windows checkout with `core.autocrlf=true` and the full build passes. Restore T44.
-- [ ] R29 Skipped Gradle participant: test and decide (minor, F4)
+- [x] R29 Skipped Gradle participant: test and decide (minor, F4)
   TestKit test for a participant skipped with `onlyIf { false }`: nothing pushed and the build fails naming the task (or, if kept green, the README states the limit; decision either way).
   Done when: the test passes and the behaviour is in decisions and README.
-- [ ] R30 Documentation conflicts (minor, F5, F6)
+- [x] R30 Documentation conflicts (minor, F5, F6)
   README: Gradle 8.x stores `-P` values in the configuration cache entry (D-096); the generic self-publication snippet uses a placeholder concurrency group, not
   `maven-snapshots-io.github.ivangsa` (keep `ReadmeSnippetsTest` and its copy source in step); bring review 470075b (`docs/reviews/2026-10-25-d441064.md`) onto `develop`.
   Done when: README and decisions updated, `ReadmeSnippetsTest` and `ReadmeGradleSnippetsTest` pass.
-- [ ] R31 Self-publication consumer checks the build just pushed (minor, F7)
+- [x] R31 Self-publication consumer checks the build just pushed (minor, F7)
   The consumer job compares the resolved snapshot (timestamp/build number in `maven-metadata.xml` or the pushed commit) with the `publish` job's output.
   Done when: `actionlint` passes and the job fails when the branch still serves an older build of the version.

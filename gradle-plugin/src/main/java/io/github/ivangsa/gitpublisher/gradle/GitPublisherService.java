@@ -110,7 +110,6 @@ public abstract class GitPublisherService implements BuildService<GitPublisherSe
     private final Set<String> succeeded = ConcurrentHashMap.newKeySet();
     private Publication publication;
     private boolean published;
-    private boolean refusalLogged;
 
     /** Step 1 of the publication algorithm. Runs once per build; later calls return at once. */
     public synchronized void checkout() {
@@ -130,8 +129,8 @@ public abstract class GitPublisherService implements BuildService<GitPublisherSe
     }
 
     /**
-     * Publishes once, and only if every participant recorded success. Otherwise nothing is pushed and the
-     * participants that did not complete are named in a log line.
+     * Publishes once, and only if every participant recorded success. Otherwise nothing is pushed and the build fails
+     * naming the participants that did not complete.
      */
     public synchronized void publishIfComplete(Collection<String> participants, List<String> coordinates) {
         if (published) {
@@ -144,12 +143,10 @@ public abstract class GitPublisherService implements BuildService<GitPublisherSe
         List<String> incomplete =
                 participants.stream().filter(p -> !succeeded.contains(p)).sorted().toList();
         if (!incomplete.isEmpty()) {
-            if (!refusalLogged) {
-                refusalLogged = true;
-                LOGGER.warn("git-maven-publisher: nothing is pushed because these publication tasks did not complete"
-                        + " successfully: " + String.join(", ", incomplete));
-            }
-            return;
+            // A refused push is not a success: a participant that Gradle skipped (onlyIf, enabled = false) or that did
+            // not run leaves nothing published, so the build fails and names it (R29, D-098).
+            throw new GradleException("git-maven-publisher: nothing is pushed because these publication tasks did not"
+                    + " complete successfully (failed, skipped or not run): " + String.join(", ", incomplete));
         }
         if (publication == null) {
             throw new GradleException("git-maven-publisher: the checkout did not run before the push");

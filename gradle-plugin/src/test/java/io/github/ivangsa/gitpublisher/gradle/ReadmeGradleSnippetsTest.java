@@ -52,7 +52,7 @@ class ReadmeGradleSnippetsTest {
     void theGroovySnippetIsTheSetupBuildThatTheTestRuns() throws IOException {
         List<String> snippets = fencedBlocks("groovy");
         assertEquals(1, snippets.size(), "one groovy block in README.md");
-        assertEquals(Files.readString(SETUP, UTF_8).strip(), snippets.get(0).strip());
+        assertEquals(lineFeeds(Files.readString(SETUP, UTF_8)).strip(), snippets.get(0).strip());
     }
 
     @Test
@@ -68,7 +68,7 @@ class ReadmeGradleSnippetsTest {
         Path project = Files.createDirectories(dir.resolve("project"));
         Files.writeString(project.resolve("settings.gradle"), "rootProject.name = 'readme-lib'\n");
         try (BareRepo remote = BareRepo.create(dir.resolve("remote"))) {
-            String build = Files.readString(SETUP, UTF_8).replace(REPOSITORY_PLACEHOLDER, remote.uri().toString());
+            String build = lineFeeds(Files.readString(SETUP, UTF_8)).replace(REPOSITORY_PLACEHOLDER, remote.uri().toString());
             Files.writeString(project.resolve("build.gradle"), build);
 
             BuildResult result = GradleRunner.create()
@@ -95,11 +95,19 @@ class ReadmeGradleSnippetsTest {
         return commands;
     }
 
+    /**
+     * Line endings do not depend on the checkout: Git for Windows with {@code core.autocrlf=true} checks text files out
+     * with CRLF, and the comparison must hold there too (R28, D-099).
+     */
+    static String lineFeeds(String text) {
+        return text.replace("\r\n", "\n");
+    }
+
     /** Text of every fenced code block with the given info string, without the fences. */
     static List<String> fencedBlocks(String language) throws IOException {
         List<String> blocks = new ArrayList<>();
         StringBuilder current = null;
-        for (String line : Files.readString(README, UTF_8).replace("\r\n", "\n").split("\n", -1)) {
+        for (String line : lineFeeds(Files.readString(README, UTF_8)).split("\n", -1)) {
             if (current == null && line.equals("```" + language)) {
                 current = new StringBuilder();
             } else if (current != null && line.equals("```")) {

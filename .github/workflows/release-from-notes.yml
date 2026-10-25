@@ -44,8 +44,10 @@ jobs:
       SIGN_KEY: ${{ secrets.SIGN_KEY }}
       SIGN_KEY_PASS: ${{ secrets.SIGN_KEY_PASS }}
 
-  # Gradle plugin to the Plugin Portal (D-083). Runs after the Maven release, so core is already on Central, and builds the
-  # tag v<version> that release-maven created. The version is the one of the root pom.xml, which the Gradle build reads (D-085).
+  # Gradle plugin to the Plugin Portal (D-083, D-100). Runs after the Maven release job, which only uploads the Central deployment
+  # (autoPublish is false): core is on Central only after the maintainer publishes that deployment. The step before publishPlugins
+  # fails while core is absent; publish the deployment, then re-run this job. It builds the tag v<version> that release-maven
+  # created. The version is the one of the root pom.xml, which the Gradle build reads (D-085).
   # Secrets are passed by name; the Plugin Portal reads GRADLE_PUBLISH_KEY and GRADLE_PUBLISH_SECRET from the environment.
   gradle-plugin:
     needs: release
@@ -78,6 +80,19 @@ jobs:
 
       - name: Install core into the local Maven repository
         run: ./mvnw -B -ntp install -DskipTests -Dinvoker.skip=true
+
+      # Gate before publishPlugins (D-100). No secret here. Central serves core only after the maintainer has published the
+      # Central deployment of this release; until then the job stops, the Plugin Portal is not touched, and the job is re-run.
+      - name: Check that core is on Maven Central
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          core_pom="https://repo1.maven.org/maven2/io/github/ivangsa/git-maven-publisher-core/${RELEASE_VERSION}/git-maven-publisher-core-${RELEASE_VERSION}.pom"
+          if ! curl --silent --show-error --fail --location --output /dev/null "${core_pom}"; then
+            echo "git-maven-publisher-core ${RELEASE_VERSION} cannot be fetched from Maven Central: ${core_pom}" >&2
+            echo "Publish the Central deployment of this release (autoPublish is false), wait until Central serves it, then re-run this job." >&2
+            exit 1
+          fi
 
       - name: Publish the Gradle plugin to the Plugin Portal
         env:

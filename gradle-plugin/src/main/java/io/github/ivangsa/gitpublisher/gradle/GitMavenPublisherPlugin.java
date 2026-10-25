@@ -102,7 +102,6 @@ public class GitMavenPublisherPlugin implements Plugin<Project> {
             task.dependsOn(checkout);
             task.finalizedBy(push);
             task.usesService(service);
-            task.doLast(new RecordSuccess(service, task.getPath()));
         });
 
         project.getGradle().getTaskGraph().whenReady(graph -> {
@@ -112,6 +111,12 @@ public class GitMavenPublisherPlugin implements Plugin<Project> {
                     .filter(GitMavenPublisherPlugin::isParticipant)
                     .collect(Collectors.toList());
             checkSettingsAgree(project, extension);
+            // The record is the last action of the participant: it is added when the graph is final, after every action
+            // that build scripts and other plugins added while configuring, so no action of the task runs after it
+            // and a task that failed anywhere never records (R26).
+            for (PublishToMavenRepository task : participants) {
+                task.doLast(new RecordSuccess(service, task.getPath()));
+            }
             if (!extension.getAllowReleases().get()) {
                 for (PublishToMavenRepository task : participants) {
                     MavenPublication publication = task.getPublication();
@@ -221,7 +226,7 @@ public class GitMavenPublisherPlugin implements Plugin<Project> {
         });
     }
 
-    /** Records that a participant completed. A task that failed never reaches its last action. */
+    /** Records that a participant completed. A task that failed or was skipped never reaches its last action. */
     static final class RecordSuccess implements Action<Task> {
         private final Provider<GitPublisherService> service;
         private final String taskPath;

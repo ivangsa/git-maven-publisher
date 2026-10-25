@@ -138,6 +138,39 @@ abstract class AbstractLifecycleTest {
 
     @ParameterizedTest
     @MethodSource("failureSchedules")
+    void aParticipantThatFailsInALaterActionMeansNoPush(List<String> schedule) {
+        // R26: an action added after the plugin's own (a build script's doLast) fails once the publish action succeeded.
+        build.withProjects("a", "b", "c")
+                .configure(
+                        "c", "tasks.named('" + PARTICIPANT + "') { doLast { throw new GradleException('late boom in c') } }");
+        for (int run = 1; run <= runs(); run++) {
+            BuildResult result = build.runAndFail(arguments(schedule), "publish");
+            assertCacheBehaviour(result, run);
+            assertTrue(result.getOutput().contains("late boom in c"), result.getOutput());
+            assertTrue(remote.branchTip(PublisherBuild.BRANCH).isEmpty(), "nothing may be pushed");
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("failureSchedules")
+    void aSkippedParticipantFailsTheBuildNamingTheTaskAndPushesNothing(List<String> schedule) {
+        // R29, D-098: a participant skipped by onlyIf leaves its coordinates unpublished; a refused push is not a success.
+        build.withProjects("a", "b", "c")
+                .configure("b", "tasks.named('" + PARTICIPANT + "') { onlyIf { false } }");
+        for (int run = 1; run <= runs(); run++) {
+            BuildResult result = build.runAndFail(arguments(schedule), "publish");
+            assertCacheBehaviour(result, run);
+            assertTrue(result.getOutput().contains(":b:" + PARTICIPANT + " SKIPPED"), result.getOutput());
+            assertTrue(
+                    result.getOutput().contains("nothing is pushed because these publication tasks did not complete")
+                            && result.getOutput().contains(":b:" + PARTICIPANT),
+                    result.getOutput());
+            assertTrue(remote.branchTip(PublisherBuild.BRANCH).isEmpty(), "nothing may be pushed");
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("failureSchedules")
     void aFailingParticipantMeansNoNewCommitWhenTheBranchExists(List<String> schedule) {
         build.withProjects("a", "b", "c");
         build.run(arguments(List.of()), "publish");

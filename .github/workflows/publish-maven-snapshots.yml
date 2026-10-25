@@ -5,7 +5,8 @@ name: Build and Publish Snapshots
 #   publish  environment git-publisher-snapshots (deploys from develop only): `./mvnw install`, then the installed plugin's
 #            deploy goal by full coordinates, publishing this project's snapshots to zenwave360/maven-snapshots, branch gh-pages.
 #            Never main. The token reaches Maven only as the env GIT_PUBLISHER_TOKEN of the publish steps.
-#   consumer a clean consumer (empty local repository) resolves the published plugin and core from raw.githubusercontent.com.
+#   consumer a clean consumer (empty local repository) resolves the published plugin and core from raw.githubusercontent.com,
+#            after it has checked that the branch serves the build that publish read back from the branch (R31, D-102).
 # Runs on push to develop and on workflow_dispatch. This is the only workflow that names environment git-publisher-snapshots.
 # Secrets are passed by name, never with `secrets: inherit`.
 
@@ -44,6 +45,8 @@ jobs:
       cancel-in-progress: false
     outputs:
       version: ${{ steps.version.outputs.version }}
+      core-build: ${{ steps.builds.outputs.core }}
+      plugin-build: ${{ steps.builds.outputs.plugin }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -83,11 +86,33 @@ jobs:
           -Dgit-publisher.repository=https://github.com/zenwave360/maven-snapshots.git
           -Dgit-publisher.branch=gh-pages
 
+      # Reads the build numbers back from the branch that the previous step pushed (public, no token). The consumer must reach
+      # at least these builds (R31, D-102). Shallow clone of gh-pages; the metadata is the one the publication wrote.
+      - name: Read the build numbers the branch now holds
+        id: builds
+        env:
+          PLUGIN_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          work="${RUNNER_TEMP}/published-branch"
+          git clone --quiet --depth 1 --branch gh-pages --single-branch https://github.com/zenwave360/maven-snapshots.git "${work}"
+          for artifact in git-maven-publisher-core git-maven-publisher-maven-plugin; do
+            metadata="${work}/io/github/ivangsa/${artifact}/${PLUGIN_VERSION}/maven-metadata.xml"
+            build="$(sed -n 's#.*<buildNumber>\([0-9][0-9]*\)</buildNumber>.*#\1#p' "${metadata}" | head -n 1)"
+            if [ -z "${build}" ]; then
+              echo "No build number for ${artifact} ${PLUGIN_VERSION} on the branch: ${metadata}" >&2
+              exit 1
+            fi
+            case "${artifact}" in
+              git-maven-publisher-core) echo "core=${build}" >> "${GITHUB_OUTPUT}" ;;
+              *) echo "plugin=${build}" >> "${GITHUB_OUTPUT}" ;;
+            esac
+          done
+
   consumer:
     name: Resolve the published snapshots in a clean consumer
     needs: publish
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       PLUGIN_VERSION: ${{ needs.publish.outputs.version }}
       SNAPSHOTS_URL: https://raw.githubusercontent.com/zenwave360/maven-snapshots/gh-pages/
@@ -102,6 +127,30 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      # raw.githubusercontent.com may serve older metadata for a few minutes after the push. Wait until the branch serves at least
+      # the builds that publish read back, and fail when it still serves an older build (R31, D-102).
+      - name: Check that the branch serves the build just pushed
+        env:
+          CORE_BUILD: ${{ needs.publish.outputs.core-build }}
+          PLUGIN_BUILD: ${{ needs.publish.outputs.plugin-build }}
+        run: |
+          served_build() {
+            curl --silent --show-error --fail --location "${SNAPSHOTS_URL}io/github/ivangsa/$1/${PLUGIN_VERSION}/maven-metadata.xml" \
+              | sed -n 's#.*<buildNumber>\([0-9][0-9]*\)</buildNumber>.*#\1#p' | head -n 1
+          }
+          for attempt in $(seq 1 15); do
+            core="$(served_build git-maven-publisher-core || true)"
+            plugin="$(served_build git-maven-publisher-maven-plugin || true)"
+            if [ "${core:-0}" -ge "${CORE_BUILD}" ] && [ "${plugin:-0}" -ge "${PLUGIN_BUILD}" ]; then
+              echo "The branch serves core build ${core} and plugin build ${plugin}; published: core ${CORE_BUILD}, plugin ${PLUGIN_BUILD}."
+              exit 0
+            fi
+            echo "Attempt ${attempt}: the branch serves core ${core:-none} and plugin ${plugin:-none}; expected at least ${CORE_BUILD} and ${PLUGIN_BUILD}. Waiting for the cache."
+            sleep 30
+          done
+          echo "The branch still serves an older build of ${PLUGIN_VERSION} than the one just pushed (core ${CORE_BUILD}, plugin ${PLUGIN_BUILD})." >&2
+          exit 1
 
       # Empty local repository under RUNNER_TEMP, Central for the dependencies, the snapshots repository for io.github.ivangsa.
       - name: Resolve the plugin and core from the published branch

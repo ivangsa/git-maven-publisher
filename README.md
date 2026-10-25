@@ -104,15 +104,19 @@ Run the publication:
 
 The task publishes what the build publishes to the repository `gitPublisher`, as one commit, to `branch`. In a multi-project build, run it at the root to publish every subproject in one commit: if any publication fails, nothing is pushed. Run it in one subproject to publish only that subproject. The plugin works with the configuration cache.
 
-Set the token as described in [Authentication](#authentication). Do not write it into the build script: a value set there is stored with the build configuration.
+A publication task that Gradle skips (`onlyIf { false }`, `enabled = false`) or that does not complete means that nothing is pushed, and the build fails naming the task: a refused push is not reported as success. This differs from Maven, where `skip=true` marks a module as not taking part. To publish only some publications, run just those tasks (or exclude a task with `-x`, which removes it from the publication).
+
+Set the token as described in [Authentication](#authentication). Do not write it into the build script: a value set there is stored with the build configuration. On Gradle 8.x, prefer the environment variable to a `-P` property: Gradle stores every `-P` value in the configuration cache entry (see Authentication).
 
 ## Authentication
 
-Tokens reach the plugin in one of three ways, in this order: the `settings.xml` server named by `serverId` (Maven), the environment variable `GIT_PUBLISHER_TOKEN`, or anonymous (only for `file` repositories). Gradle reads the environment variable, then the Gradle property `gitPublisherToken` (for example in `~/.gradle/gradle.properties`, never in the project). A token never goes on the command line, into the POM or build script, into the remote URL, the Git config or a log line.
+Tokens reach the plugin in one of three ways, in this order: the `settings.xml` server named by `serverId` (Maven), the environment variable `GIT_PUBLISHER_TOKEN`, or anonymous (only for `file` repositories). Gradle reads the environment variable, then the Gradle property `gitPublisherToken` (for example in `~/.gradle/gradle.properties`, never in the project). A token never goes into the POM or build script, into the remote URL, the Git config or a log line.
+
+Do not pass a token with `-P` on the Gradle command line, and prefer the environment variable to `gradle.properties` when you can. On Gradle 8.x, Gradle stores every `-P` value in the configuration cache entry, whether or not the build reads it, so a token passed that way ends up in `.gradle/configuration-cache` (D-096). Gradle 9.x does not store it. If you must use `-P`, run without `--configuration-cache`.
 
 ### Self-publication with GITHUB_TOKEN
 
-For snapshots of a project that publishes to its own repository, the workflow token is enough. It needs `contents: write`, and the job passes it as `GIT_PUBLISHER_TOKEN`:
+For snapshots of a project that publishes to its own repository, the workflow token is enough. It needs `contents: write`, and the job passes it as `GIT_PUBLISHER_TOKEN`. Replace `<groupId>` in the concurrency group with the groupId of the coordinates you publish (this project uses `io.github.ivangsa`); every workflow that publishes those coordinates to the same repository uses the same group:
 
 ```yaml
 name: publish-snapshots
@@ -126,7 +130,7 @@ permissions:
 
 # Serialize every publication of the coordinates of this project, and of every other workflow that publishes them (design section 7).
 concurrency:
-  group: maven-snapshots-io.github.ivangsa
+  group: maven-snapshots-<groupId>
   cancel-in-progress: false
 
 jobs:

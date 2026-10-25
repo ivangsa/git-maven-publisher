@@ -9,7 +9,7 @@ permissions:
 
 # Serialize every publication of the coordinates of this project, and of every other workflow that publishes them (design section 7).
 concurrency:
-  group: maven-snapshots-io.github.ivangsa
+  group: maven-snapshots-<groupId>
   cancel-in-progress: false
 
 jobs:
