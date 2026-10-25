@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 fixed and re-reviewed (no findings); repo public; T61 branch model on (agents push to `develop`) · BP5 (T60 self-publication) done, first publication run on `develop` reported in the batch report · Phase 2: B15 done (T34-T37), B16 done (T38-T40), B17 done (T41, T42), B18 partial (T44 done, T45 [?] Q12), B18b done (T43) on `develop`; BR9 done (R26, R29; T36 restored) · BR10 done (R27, R28, R30, R31; T44 restored) · re-review of BR9, BR10: FIX FIRST (review 53fd0c7, R32) · BR11 done (R32; T36, R26 restored), awaiting re-review
+**Status:** Phase 1 fixed and re-reviewed (no findings); repo public; T61 branch model on (agents push to `develop`) · BP5 (T60 self-publication) done, first publication run on `develop` reported in the batch report · Phase 2: B15 done (T34-T37), B16 done (T38-T40), B17 done (T41, T42), B18 partial (T44 done, T45 [?] Q12), B18b done (T43) on `develop`; BR9 done (R26, R29; T36 restored) · BR10 done (R27, R28, R30, R31; T44 restored) · re-review of BR9, BR10: FIX FIRST (review 53fd0c7, R32) · BR11 done (R32; T36, R26 restored) · re-review of BR11: FIX FIRST (review 66f46ec, R33-R35)
 
 ## Batches
 
@@ -416,9 +416,27 @@ Review test: `gradle-plugin/src/test/java/io/github/ivangsa/gitpublisher/gradle/
 From [review 2026-10-25-53fd0c7](reviews/2026-10-25-53fd0c7.md) (re-review of BR9, BR10, verdict FIX FIRST).
 Review test: `gradle-plugin/src/test/java/io/github/ivangsa/gitpublisher/gradle/review/R32LateWhenReadyActionReviewTest.java`.
 
-- [x] R32 A participant action added in a later `taskGraph.whenReady` must not run after the success record (major, F1)
+- [!] R32 A participant action added in a later `taskGraph.whenReady` must not run after the success record (major, F1; [review 2026-10-25-66f46ec](reviews/2026-10-25-66f46ec.md), F1, R33)
   The record must fail closed: a participant whose last action is not the record (for example, `RecordSuccess` checks `task.getActions()` at
   execution time, with one record action per participant instead of one per project applying the plugin) stays unrecorded, so D-098 refuses
   the push; or another mechanism that sees the task's final outcome before the finalizer. Configuration cache kept. Correct the D-097 claim.
   Done when: `R32LateWhenReadyActionReviewTest` passes (default, `--continue`, `--configuration-cache`), `R26LateParticipantFailureReviewTest` and all
   lifecycle and configuration-cache tests pass and the full build passes. Restore T36 and R26.
+
+From [review 2026-10-25-66f46ec](reviews/2026-10-25-66f46ec.md) (re-review of BR11, verdict FIX FIRST).
+Review test: `gradle-plugin/src/test/java/io/github/ivangsa/gitpublisher/gradle/review/R33CountPreservingLateActionReviewTest.java`.
+
+- [ ] R33 The success record must check that it is the last action, not only the action count (minor, F1)
+  A later `whenReady` that removes one action and adds a failing `doLast`, or wraps the record via `setActions`, keeps the count and still pushes.
+  For example, add the record as a named action (`doLast("<unique name>", ...)`) and, at execution time, require both the stored count and that the last
+  element of `task.getActions()` is a `org.gradle.api.Describable` with the record's display name; otherwise fail closed. Configuration cache kept. Correct D-103.
+  Done when: `R33CountPreservingLateActionReviewTest` passes (5 cases), R32, R26, `LateActionFailsClosedTest` and all lifecycle and configuration-cache tests pass,
+  and the full build passes. Restore R32.
+- [ ] R34 README: late actions fail the build; D-097 Limit revised (minor, F2)
+  README Gradle section states that publication tasks must not get actions after the task graph is ready and that any such action, even a successful one,
+  fails the build with nothing pushed (D-103). Mark the D-097 "Limit" bullet as revised by D-103.
+  Done when: README and decisions updated, `ReadmeGradleSnippetsTest` passes.
+- [ ] R35 Composite builds: decide one publication or one per build (minor, F3)
+  An included build's failed participant does not stop the root build's push (two services, two pushes). Ask the maintainer in docs/questions.md; record the
+  answer in design section 2, decisions and README; if one publication per invocation, make the push fail closed across included builds with a TestKit test.
+  Done when: the decision is recorded and, if behaviour changes, its test passes with the full build.
