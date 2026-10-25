@@ -1,0 +1,41 @@
+name: publish-snapshots
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+# Serialize every publication of the coordinates of this project, and of every other workflow that publishes them (design section 7).
+concurrency:
+  group: maven-snapshots-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: ./mvnw -B verify
+
+  # A separate publishing stage: runs only after the whole verify job succeeded.
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Publish snapshots
+        env:
+          # Self-publication to this repository: the workflow token.
+          # External users: a fine-grained PAT with Contents: write on the snapshots repository only, for example GIT_PUBLISHER_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          GIT_PUBLISHER_TOKEN: ${{ github.token }}
+        run: ./mvnw -B deploy -Dgit-publisher.repository=https://github.com/${{ github.repository }}.git -Dgit-publisher.branch=snapshots

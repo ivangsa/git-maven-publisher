@@ -1,0 +1,28 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>it.reactor</groupId>
+  <artifactId>property-only</artifactId>
+  <version>1.0-SNAPSHOT</version>
+
+  <properties>
+    <!-- the standard deploy plugin must not run next to git-maven-publisher -->
+    <maven.deploy.skip>true</maven.deploy.skip>
+  </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>io.github.ivangsa</groupId>
+        <artifactId>git-maven-publisher-maven-plugin</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>deploy</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

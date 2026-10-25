@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Last finished: T21b (B10) · Review f9bb6b5 FIX FIRST · Next: R15-R18 (new batch), then B11 (T23, T24)
+**Status:** Last finished: B13 (T29-T31) · Next: review after B13, then B14 (T32, blocked on Q4)
 
 ## Batches
 
@@ -29,9 +29,10 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | B08 | T20 (lease) | implementer | core | | done |
 | B09 | T21 (retry + independent replay) | implementer | core | | done |
 | B10 | T21b (conflict detection) | implementer | core | yes (lease + retry + replay + conflicts) | done |
-| B11 | T23, T24 (T22 dropped, D-044) | implementer | core, testing | | todo |
-| B12 | T25, T26, T27, T28 | implementer | maven-plugin | | todo |
-| B13 | T29, T30, T31 | mechanic | maven-plugin | yes (end of Phase 1 code) | todo |
+| BR6 | [!] T21 via R15; R16, R17, R18 | implementer | core, testing | | done |
+| B11 | T23, T24 (T22 dropped, D-044) | implementer | core, testing | | done |
+| B12 | T25, T26, T27, T28 | implementer | maven-plugin | | done |
+| B13 | T29, T30, T31 | mechanic | maven-plugin | yes (end of Phase 1 code) | done (review pending) |
 | B14 | T32 | mechanic | maven-plugin | | blocked (Q4) |
 | B15 | T34, T35, T36, T37 | implementer | gradle-plugin | | blocked (Q10) |
 | B16 | T38, T39, T40 | implementer | gradle-plugin, testing | | todo |
@@ -140,40 +141,40 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T20 Commit and push with lease (single attempt)
   Parentless commit from `repo/`, message format, forced push with expected old id. Also moves `refs/publisher/tree` in the same push, without a lease on it (D-020, D-027).
   Done when: after N publishes the branch has exactly 1 commit; stale lease returns a lease-failure result; the second and later pushes send only the new objects. The branch exists without `refs/publisher/tree` (created by hand): the publish succeeds in one attempt and creates the tree ref. A rejected tree ref never fails or retries a publish (D-027).
-- [!] T21 Retry loop with independent replay ([review F1](reviews/2026-10-24-f9bb6b5.md): HTTP 403 retried)
+- [x] T21 Retry loop with independent replay (restored via R15)
   Back-off with jitter; on lease failure re-fetch, re-materialize, copy `ours` for paths the remote did not change, keep paths the remote changed to identical bytes, then retention and integrity again (design §7). Transport errors retried, auth failures fail fast.
   Done when: a competing push on disjoint coordinates between checkout and push ends with both publications present and valid; two first publications on a missing branch both succeed (identical `.nojekyll`); budget exhaustion raises `PublishException`; an auth failure makes exactly one attempt.
 - [x] T21b Conflict detection and diagnostics
   A path changed on both sides with different content, or changed by us and deleted by the remote, is a conflict (design §7): `PublishException`, no retry, nothing pushed. The message lists every conflicting path and the external-serialization hint.
   Done when: competing publications of the same `groupId:artifactId` (different versions, and the same snapshot version) end with one published and the other failing with that diagnostic; the remote tree is unchanged by the failed one; two Maven plugins in one groupId touching G-level metadata conflict the same way; no token or URL userinfo in the message.
 - ~~T22 Concurrency IT~~ dropped (D-044): the deterministic interleaving tests of T21, T21b and T23 cover the race; no N-thread stress test.
-- [ ] T23 Differential IT through GitPublisher
+- [x] T23 Differential IT through GitPublisher
   Same script of distinct coordinates through `SequentialReference` (expected) and through interleaved `GitPublisher` checkouts (`InterleavedPublishScenario`) with forced lease failures and overlay replay (actual); retention disabled and enabled.
   Done when: `TreeDiff` reports no difference for every script.
-- [ ] T24 HTTPS token auth
+- [x] T24 HTTPS token auth
   `Token` credentials against JGit HTTP server with basic auth; wrong token fails fast without retries.
   Done when: publish succeeds with the right token; a wrong token fails after one attempt; the token is not in `git/config`, the remote URL or the exception message.
-- [ ] T25 Maven plugin skeleton
+- [x] T25 Maven plugin skeleton
   `deploy` mojo, all parameters from design §2, release guard, `skip`.
   Done when: plugin descriptor generated; unit tests for release guard and parameter defaults.
-- [ ] T26 Reactor collector and trigger
+- [x] T26 Reactor collector and trigger
   Participants, check-in, configuration check and guarantee per design §2 (Maven) and D-034. Session-scoped collector, `-T` safe.
   Done when: invoker ITs: 3 modules (one `pom` packaging) produce exactly one commit, with `-T 4` too; a participant with `skip=true` still lets the others publish;
   a failing participant with `--fail-at-end` produces no push; `-pl` on one module publishes only it; mismatched `repository` between modules fails before checkout;
   a trailing non-participating module that fails after the last participant leaves the publication pushed and the build failed (documented behaviour).
-- [ ] T27 Native deploy into work tree
+- [x] T27 Native deploy into work tree
   One `RepositorySystem.deploy` to `file://repo/`, `checksumAlgorithms`, attached artifacts and `.asc` files.
   Done when: invoker IT (`src/it`) multi-module → bare repo → `MavenConsumer` resolves main jar and sources.
-- [ ] T28 Maven credentials
+- [x] T28 Maven credentials
   `serverId` (incl. encrypted password) and `GIT_PUBLISHER_TOKEN`.
   Done when: invoker ITs for both sources against the HTTP git server.
-- [ ] T29 Maven 4 compatibility
+- [x] T29 Maven 4 compatibility
   CI matrix runs invoker ITs on the latest Maven 3.10.x and the latest Maven 4.0 (RC until GA).
   Done when: both matrix legs green.
-- [ ] T30 Property-only configuration
+- [x] T30 Property-only configuration
   Publish with `-Dgit-publisher.*` and no `<configuration>`.
   Done when: invoker IT passes.
-- [ ] T31 Maven user docs
+- [x] T31 Maven user docs
   README: setup; the two authentication scenarios (self-publication with `GITHUB_TOKEN`; external users with a fine-grained PAT, expiry); serving the branch (raw.githubusercontent.com, Pages by hand with `nojekyll`, any static server);
   serialization precondition (all coordinates of a project, every workflow that can publish them, shared group-level plugin metadata) with an Actions `concurrency` snippet;
   reactor guarantee and the "separate publishing stage" recommendation; retention caveat and the accepted cache risk; GitHub hosting limits note.
@@ -300,16 +301,16 @@ Review tests live in `src/test/java/io/github/ivangsa/gitpublisher/review/` (R11
 From [review 2026-10-24-f9bb6b5](reviews/2026-10-24-f9bb6b5.md) (lease + retry + replay + conflicts, verdict FIX FIRST). All before B11.
 Review tests live in `src/test/java/io/github/ivangsa/gitpublisher/review/` (R15 and R16 are in the core package because the classes under test are package-private).
 
-- [ ] R15 Classify auth failures by status, not by words in the message (major, F1)
+- [x] R15 Classify auth failures by status, not by words in the message (major, F1)
   A 403 (`serviceNotPermitted`) fails fast like a 401; the URL inside the JGit message never decides. Cover 401 and 403 from a real `GitServlet`. Restore T21 after the full build passes.
   Done when: `R15AuthFailureClassificationTest` passes.
-- [ ] R16 A permanent push rejection fails fast (minor, F2)
+- [x] R16 A permanent push rejection fails fast (minor, F2)
   Branch statuses other than OK, UP_TO_DATE and REJECTED_REMOTE_CHANGED are fatal with the remote's reason and a force-push hint; design §4 and a decision.
   Done when: `R16PermanentPushRejectionTest` passes.
-- [ ] R17 Clear the token on close (minor, F3)
+- [x] R17 Clear the token on close (minor, F3)
   Clear JGit credentials providers after each operation and the token on `Publication.close()`, or amend design §8 with a decision naming the owner.
   Done when: `R17TokenClearedOnCloseTest` passes (or is updated with that decision).
-- [ ] R18 A failed publication moves no ref (minor, F4)
+- [x] R18 A failed publication moves no ref (minor, F4)
   Move `refs/publisher/tree` only after the branch update succeeded, or amend design §4/§7 and D-027 and reword "nothing was pushed".
   Also add the T21b tests from F5 (remote deletes a path we changed; same-snapshot conflict with pinned start times and exact paths).
   Done when: `R18FailedPublicationMovesNoRefTest` passes (or is updated with that decision).

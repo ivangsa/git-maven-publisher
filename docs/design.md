@@ -150,7 +150,7 @@ No `.git` inside the served tree, no URL or credentials written to any Git confi
    3. `IntegrityCheck` (§5). Violation = bug → fail, never push.
    4. Build tree from `repo/` (DirCache + ObjectInserter), commit with **no parents**, message:
       `Publish <coords...>` + blank line + `source: <sha>`.
-   5. Push `RemoteRefUpdate(force=true, expectedOldObjectId = expectedSha or zeroId)`, together with a second update that force-moves `refs/publisher/tree` to the new root tree, **without a lease** (`expectedOldObjectId` unset). The tree ref is a transfer hint, not a lease: without it JGit resends the whole tree for a parentless commit (D-020). Its status is ignored; only the branch status decides (D-027).
+   5. Push `RemoteRefUpdate(force=true, expectedOldObjectId = expectedSha or zeroId)`, together with a second update that force-moves `refs/publisher/tree` to the new root tree, **without a lease** (`expectedOldObjectId` unset). The tree ref is a transfer hint, not a lease: without it JGit resends the whole tree for a parentless commit (D-020). The push is **atomic** (`Transport.setPushAtomic`), so a branch update rejected by the lease moves no ref and the hint never points at a failed publication; if the server does not support atomic pushes the hint is skipped (D-060). Only the branch status decides (D-027). A branch status other than OK, UP_TO_DATE or the lease failure (protected branch, hook, size limit, non-fast-forward denial) is a permanent refusal: fail fast with the remote's reason and the hint that the branch must allow force pushes (D-060).
    6. Branch update `OK` → done, whatever the status of the tree ref (it may be missing, stale or rejected, for example when the branch was created by hand; the next push repairs it). Branch `REJECTED_REMOTE_CHANGED` / lease failure → back-off, re-fetch, `OverlayReplay` (§7), go to 3.ii.
       Transport `IOException` → back-off and retry within the same budget. Auth failure → fail fast. Replay conflict → fail fast (§7).
 
@@ -231,7 +231,7 @@ HTTPS with a token only (D-015). Two documented scenarios (D-035):
 - The token is never written to the remote URL, Git config, a committed file or a log line; repository URLs with userinfo are rejected
   at config time. Plain unit tests cover these rules. There is no leak scanner (D-045): the plugin creates no credentials and only
   passes the token to JGit.
-- Token held as `char[]`, wrapped in `UsernamePasswordCredentialsProvider` per operation, cleared on `close()`.
+- Token held as `char[]`, wrapped in `UsernamePasswordCredentialsProvider` per operation, cleared on `close()`: each provider is cleared after its operation and `Publication.close()` clears the `Credentials.Token` of the config (D-060). Auth failures (HTTP 401/403) are recognised from JGit's message with URLs removed, never from the repository name.
 
 **Serving the branch is the user's responsibility (D-043).** The plugin pushes the branch and nothing else. Users serve it however they
 like: `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/` for a public repository, GitHub Pages configured by hand, or any static

@@ -55,17 +55,23 @@ class GitRemote {
     Optional<ObjectId> fetchTip(Repository git) throws GitAPIException, java.io.IOException {
         String ref = Constants.R_HEADS + config.branch();
         String url = config.repository().toString();
-        Collection<Ref> advertised = authenticate(Git.lsRemoteRepository().setRemote(url).setHeads(true).setTags(false))
-                .call();
-        if (advertised.stream().noneMatch(r -> r.getName().equals(ref))) {
-            return Optional.empty();
+        CredentialsProvider provider = credentialsProvider();
+        try {
+            Collection<Ref> advertised = authenticate(
+                            Git.lsRemoteRepository().setRemote(url).setHeads(true).setTags(false), provider)
+                    .call();
+            if (advertised.stream().noneMatch(r -> r.getName().equals(ref))) {
+                return Optional.empty();
+            }
+            authenticate(Git.wrap(git).fetch(), provider)
+                    .setRemote(url)
+                    .setRefSpecs("+" + ref + ":" + ref)
+                    .setDepth(1)
+                    .setTagOpt(TagOpt.NO_TAGS)
+                    .call();
+        } finally {
+            clear(provider);
         }
-        authenticate(Git.wrap(git).fetch())
-                .setRemote(url)
-                .setRefSpecs("+" + ref + ":" + ref)
-                .setDepth(1)
-                .setTagOpt(TagOpt.NO_TAGS)
-                .call();
         return Optional.ofNullable(git.resolve(ref));
     }
 
@@ -95,34 +101,73 @@ class GitRemote {
                 git, commit.name(), branchRef, true, null, expectedOld.orElse(ObjectId.zeroId()));
         RemoteRefUpdate treeUpdate = new RemoteRefUpdate(git, tree.name(), TREE_REF, true, null, null);
         PushResult result;
-        try (Transport transport = Transport.open(git, new URIish(config.repository().toString()))) {
-            CredentialsProvider provider = credentialsProvider();
-            if (provider != null) {
-                transport.setCredentialsProvider(provider);
+        try {
+            result = pushUpdates(git, List.of(branch, treeUpdate), true);
+        } catch (org.eclipse.jgit.errors.TransportException e) {
+            if (!String.valueOf(e.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("atomic")) {
+                throw e;
             }
-            result = transport.push(NullProgressMonitor.INSTANCE, List.of(branch, treeUpdate));
-        } catch (java.net.URISyntaxException e) {
-            throw new IOException("invalid repository URL", e);
+            // a server without atomic pushes: publish without the hint rather than risk a hint for a failed publication
+            branch = new RemoteRefUpdate(
+                    git, commit.name(), branchRef, true, null, expectedOld.orElse(ObjectId.zeroId()));
+            result = pushUpdates(git, List.of(branch), false);
         }
         RemoteRefUpdate status = result.getRemoteUpdate(branchRef);
         if (status == null) {
             throw new IOException("the remote did not report a status for " + branchRef);
         }
-        return switch (status.getStatus()) {
-            case OK, UP_TO_DATE -> new PushOutcome.Pushed();
-            case REJECTED_REMOTE_CHANGED -> new PushOutcome.LeaseFailed(
-                    "the branch " + config.branch() + " changed on the remote since it was fetched");
-            default -> throw new IOException("the remote rejected the push to " + branchRef + ": "
-                    + status.getStatus() + (status.getMessage() == null ? "" : " (" + status.getMessage() + ")"));
-        };
+        switch (status.getStatus()) {
+            case OK, UP_TO_DATE -> {
+                return new PushOutcome.Pushed();
+            }
+            case REJECTED_REMOTE_CHANGED -> {
+                return new PushOutcome.LeaseFailed(
+                        "the branch " + config.branch() + " changed on the remote since it was fetched");
+            }
+            case NOT_ATTEMPTED, AWAITING_REPORT -> throw new IOException("the remote did not complete the push to "
+                    + branchRef + ": " + status.getStatus());
+            default -> throw new PushRejectedException("the remote rejected the push to " + branchRef + ": "
+                    + status.getStatus() + (status.getMessage() == null ? "" : " (" + status.getMessage() + ")")
+                    + "; the branch must allow force pushes (no branch protection, no non-fast-forward denial)");
+        }
     }
 
-    private <C extends TransportCommand<C, ?>> C authenticate(C command) {
+    /** The remote refused the branch update for good (protected branch, hook, size limit): retrying does not help. */
+    static final class PushRejectedException extends IOException {
+        private static final long serialVersionUID = 1L;
+
+        PushRejectedException(String message) {
+            super(message);
+        }
+    }
+
+    private PushResult pushUpdates(Repository git, List<RemoteRefUpdate> updates, boolean atomic) throws IOException {
         CredentialsProvider provider = credentialsProvider();
+        try (Transport transport = Transport.open(git, new URIish(config.repository().toString()))) {
+            if (provider != null) {
+                transport.setCredentialsProvider(provider);
+            }
+            transport.setPushAtomic(atomic); // a rejected branch update must not move the tree hint (R18)
+            return transport.push(NullProgressMonitor.INSTANCE, updates);
+        } catch (java.net.URISyntaxException e) {
+            throw new IOException("invalid repository URL", e);
+        } finally {
+            clear(provider);
+        }
+    }
+
+    private <C extends TransportCommand<C, ?>> C authenticate(C command, CredentialsProvider provider) {
         if (provider != null) {
             command.setCredentialsProvider(provider);
         }
         return command;
+    }
+
+    /** Wipes the copy of the token held by a per-operation provider. */
+    private static void clear(CredentialsProvider provider) {
+        if (provider instanceof UsernamePasswordCredentialsProvider passwordProvider) {
+            passwordProvider.clear();
+        }
     }
 
     private CredentialsProvider credentialsProvider() {

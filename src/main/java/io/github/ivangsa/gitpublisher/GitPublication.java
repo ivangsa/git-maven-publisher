@@ -144,22 +144,25 @@ final class GitPublication implements Publication {
                 + tip.map(ObjectId::name).orElse("an empty branch"));
     }
 
-    /** Authentication failures and a missing repository do not get better by waiting. */
+    private static final java.util.regex.Pattern URL = java.util.regex.Pattern.compile("[A-Za-z][A-Za-z0-9+.-]*://[^\s']*");
+
+    /**
+     * Authentication failures, refused pushes and a missing repository do not get better by waiting. Classified on the
+     * JGit message with every URL removed first, so a repository name never decides (review F1).
+     */
     static boolean isFatal(Throwable error) {
         for (Throwable t = error; t != null; t = t.getCause()) {
-            if (t instanceof NoRemoteRepositoryException) {
+            if (t instanceof NoRemoteRepositoryException || t instanceof GitRemote.PushRejectedException) {
                 return true;
             }
             if (t instanceof TransportException || t instanceof org.eclipse.jgit.api.errors.TransportException) {
-                String message = String.valueOf(t.getMessage()).toLowerCase(Locale.ROOT);
-                if (message.contains("not authorized")
-                        || message.contains("unauthorized")
-                        || message.contains("authentication")
-                        || message.contains("forbidden")
-                        || message.contains("invalid credentials")
-                        || message.contains("auth fail")
-                        || message.contains(" 401")
-                        || message.contains(" 403")) {
+                String message = URL.matcher(String.valueOf(t.getMessage())).replaceAll("<url>")
+                        .toLowerCase(Locale.ROOT);
+                if (message.contains("not authorized") // HTTP 401
+                        || message.contains("not permitted") // HTTP 403 (serviceNotPermitted)
+                        || message.contains("authentication is required") // 401 without a CredentialsProvider
+                        || message.contains("authentication not supported")
+                        || message.contains("invalid credentials")) {
                     return true;
                 }
             }
@@ -200,5 +203,8 @@ final class GitPublication implements Publication {
     @Override
     public void close() {
         git.close();
+        if (config.credentials() instanceof Credentials.Token token) {
+            token.clear(); // design section 8
+        }
     }
 }

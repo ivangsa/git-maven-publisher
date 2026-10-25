@@ -31,3 +31,40 @@ jobs:
 
       - name: Build and test (no Docker needed)
         run: ./mvnw -B verify
+
+  # Invoker ITs (src/it) run inside `verify` with the Maven that runs the build (D-012).
+  # The wrapper pins 3.10.x; this matrix runs the latest 3.10.x and the latest Maven 4.0 from Maven Central.
+  maven-matrix:
+    name: verify (Maven ${{ matrix.maven }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        maven: ['3.10.0', '4.0.0-rc-7']
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Install Maven ${{ matrix.maven }}
+        env:
+          MAVEN_VERSION: ${{ matrix.maven }}
+        run: |
+          base="https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/${MAVEN_VERSION}"
+          archive="${RUNNER_TEMP}/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+          curl -fsSL -o "${archive}" "${base}/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+          echo "$(curl -fsSL "${base}/apache-maven-${MAVEN_VERSION}-bin.tar.gz.sha512")  ${archive}" | sha512sum -c -
+          tar -xzf "${archive}" -C "${RUNNER_TEMP}"
+          echo "${RUNNER_TEMP}/apache-maven-${MAVEN_VERSION}/bin" >> "${GITHUB_PATH}"
+
+      - name: Build and test with that Maven (no Docker needed)
+        run: |
+          mvn -B -version
+          mvn -B verify

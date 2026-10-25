@@ -16,17 +16,23 @@
 package io.github.ivangsa.gitpublisher;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.ivangsa.gitpublisher.fixtures.BareRepo;
 import io.github.ivangsa.gitpublisher.fixtures.InterleavedPublishScenario;
 import io.github.ivangsa.gitpublisher.fixtures.ResolverDeployer;
 import io.github.ivangsa.gitpublisher.fixtures.SequentialReference;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import org.eclipse.jgit.lib.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -64,8 +70,16 @@ class GitPublisherConflictTest {
 
     private InterleavedPublishScenario.Outcome run(
             SequentialReference.Step a, SequentialReference.Step b, Consumer<Path> extraDeploy) {
+        return run(a, b, extraDeploy, Instant::now);
+    }
+
+    private InterleavedPublishScenario.Outcome run(
+            SequentialReference.Step a,
+            SequentialReference.Step b,
+            Consumer<Path> extraDeploy,
+            Supplier<Instant> clock) {
         try (BareRepo bare = BareRepo.create(tmp.resolve("remote.git"))) {
-            var outcome = new InterleavedPublishScenario(bare, BRANCH, tmp.resolve("work"), a, b)
+            var outcome = new InterleavedPublishScenario(bare, BRANCH, tmp.resolve("work"), a, b, clock)
                     .run(publisher(extraDeploy));
             outcome.assertSharedPathFailsSafely();
             assertThat(bare.commitCount(BRANCH)).isEqualTo(1);
@@ -92,14 +106,62 @@ class GitPublisherConflictTest {
     }
 
     @Test
-    void theSameSnapshotVersionConflicts() {
+    void theSameSnapshotInTheSameSecondConflictsOnTheBuildFiles() {
+        Instant start = Instant.parse("2026-10-24T10:00:00Z");
         var outcome = run(
                 SequentialReference.Step.javaProject("org.acme", "alpha", "1.0-SNAPSHOT"),
                 SequentialReference.Step.javaProject("org.acme", "alpha", "1.0-SNAPSHOT"),
-                dir -> {});
+                dir -> {},
+                () -> start);
 
-        // build 1 of the same second collides on the files; another second collides on the version metadata
-        assertDiagnostic(outcome.errorA(), "org/acme/alpha/1.0-SNAPSHOT/");
+        assertDiagnostic(
+                outcome.errorA(),
+                "org/acme/alpha/1.0-SNAPSHOT/alpha-1.0-20261024.100000-1.jar",
+                "org/acme/alpha/1.0-SNAPSHOT/alpha-1.0-20261024.100000-1.pom");
+    }
+
+    @Test
+    void theSameSnapshotInAnotherSecondConflictsOnTheVersionMetadata() {
+        Instant[] starts = {Instant.parse("2026-10-24T10:00:00Z"), Instant.parse("2026-10-24T10:00:05Z")};
+        int[] next = {0};
+        var outcome = run(
+                SequentialReference.Step.javaProject("org.acme", "alpha", "1.0-SNAPSHOT"),
+                SequentialReference.Step.javaProject("org.acme", "alpha", "1.0-SNAPSHOT"),
+                dir -> {},
+                () -> starts[next[0]++ % 2]);
+
+        assertDiagnostic(outcome.errorA(), "org/acme/alpha/1.0-SNAPSHOT/maven-metadata.xml");
+        assertThat(outcome.errorA().getMessage()).doesNotContain("alpha-1.0-20261024.100000-1.jar");
+    }
+
+    @Test
+    void aPathWeChangedAndTheRemoteDeletedIsAConflict() throws Exception {
+        try (BareRepo bare = BareRepo.create(tmp.resolve("deleted.git"))) {
+            bare.commitFiles(BRANCH, Map.of("a.txt", new byte[] {1}, "keep.txt", new byte[] {9}), "first");
+            PublishConfig config = new PublishConfig(
+                    bare.uri(),
+                    BRANCH,
+                    Credentials.none(),
+                    tmp.resolve("work-deleted"),
+                    RetentionPolicy.defaults(),
+                    FAST,
+                    PublishConfig.defaultAuthor(),
+                    false,
+                    false,
+                    PublishConfig.DEFAULT_CHECKSUMS);
+            try (Publication publication = new GitPublisher(config, PublisherLog.silent()).checkout()) {
+                ObjectId competing = bare.commitFiles(BRANCH, Map.of("keep.txt", new byte[] {9}), "deletes a.txt");
+                Files.writeString(publication.repositoryDirectory().resolve("a.txt"), "ours");
+
+                assertThatThrownBy(() -> publication.publish(new PublishInfo(List.of(), Optional.empty())))
+                        .isInstanceOf(PublishException.class)
+                        .hasMessageContaining("conflict")
+                        .hasMessageContaining("a.txt")
+                        .hasMessageContaining("nothing was pushed");
+                assertThat(bare.branchTip(BRANCH)).contains(competing);
+                assertThat(bare.readTree(BRANCH)).containsOnlyKeys("keep.txt");
+            }
+        }
     }
 
     @Test

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>it.reactor</groupId>
+    <artifactId>reactor</artifactId>
+    <version>1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>lib</artifactId>
+
+  <build>
+    <plugins>
+      <!-- stands in for maven-gpg-plugin: attaches a signature of the jar as type jar.asc, as the real plugin does -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <id>attach-signature</id>
+            <phase>package</phase>
+            <goals>
+              <goal>attach-artifact</goal>
+            </goals>
+            <configuration>
+              <artifacts>
+                <artifact>
+                  <file>${project.basedir}/src/main/asc/lib.jar.asc</file>
+                  <type>jar.asc</type>
+                </artifact>
+              </artifacts>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
