@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 fixed and re-reviewed (no findings); repo public; T61 branch model on (agents push to `develop`) · BP5 (T60 self-publication) done, first publication run on `develop` reported in the batch report · Phase 2: B15 done (T34-T37), B16 done (T38-T40), B17 done (T41, T42), B18 partial (T44 done, T45 [?] Q12), B18b done (T43) on `develop`; BR9 done (R26, R29; T36 restored) · BR10 done (R27, R28, R30, R31; T44 restored) · re-review of BR9, BR10: FIX FIRST (review 53fd0c7, R32) · BR11 done (R32; T36, R26 restored) · re-review of BR11: FIX FIRST (review 66f46ec, R33-R35) · BR12 done (R33, D-104; R34; R32 restored; R35 [?] Q13)
+**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP), except T45 [?] (Q12, Plugin Portal key) and R35 [?] (Q13, composite builds) · validation cadence D-092 · next: maintainer answers Q12/Q13, develop → main PR, T32b; then Phase 3 (B19)
 
 ## Batches
 
