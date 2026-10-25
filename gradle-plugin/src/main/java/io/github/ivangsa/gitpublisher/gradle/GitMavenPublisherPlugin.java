@@ -19,6 +19,8 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -27,6 +29,8 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.publish.PublishingExtension;
@@ -49,6 +53,8 @@ public class GitMavenPublisherPlugin implements Plugin<Project> {
     public static final String CHECKOUT_TASK = "gitPublisherCheckout";
     public static final String PUSH_TASK = "gitPublisherPush";
 
+    private static final Logger LOGGER = Logging.getLogger(GitMavenPublisherPlugin.class);
+    private static final String RECORDED_KEY = "io.github.ivangsa.gitpublisher.recordedParticipants";
     private static final String SERVICE_NAME = "gitPublisher";
     private static final String SIGNATURE_KEY = "io.github.ivangsa.gitpublisher.settingsSignature";
 
@@ -111,11 +117,16 @@ public class GitMavenPublisherPlugin implements Plugin<Project> {
                     .filter(GitMavenPublisherPlugin::isParticipant)
                     .collect(Collectors.toList());
             checkSettingsAgree(project, extension);
-            // The record is the last action of the participant: it is added when the graph is final, after every action
-            // that build scripts and other plugins added while configuring, so no action of the task runs after it
-            // and a task that failed anywhere never records (R26).
+            // One record per participant, however many projects applied the plugin (each runs this callback). It is added
+            // after every action known now and remembers how many actions the task then has; when it runs it records
+            // nothing unless the task still has exactly that many, so an action added after it, by any later callback or
+            // plugin, leaves the participant unrecorded and the push is refused (R26, R32, D-103).
+            Set<String> recorded = recordedParticipants(project);
             for (PublishToMavenRepository task : participants) {
-                task.doLast(new RecordSuccess(service, task.getPath()));
+                if (recorded.add(task.getPath())) {
+                    int expected = task.getActions().size() + 1;
+                    task.doLast(new RecordSuccess(service, task.getPath(), expected));
+                }
             }
             if (!extension.getAllowReleases().get()) {
                 for (PublishToMavenRepository task : participants) {
@@ -226,19 +237,46 @@ public class GitMavenPublisherPlugin implements Plugin<Project> {
         });
     }
 
-    /** Records that a participant completed. A task that failed or was skipped never reaches its last action. */
+    /**
+     * Records that a participant completed, fail closed. A task that failed or was skipped never reaches it. It also
+     * records nothing when the task does not have exactly the number of actions it had when this record was added as
+     * its last action: an action added afterwards (a later {@code whenReady}, an execution-time {@code doLast}, ...) has
+     * not run yet and could still fail, so the outcome of the task is not known. The participant then stays unrecorded
+     * and the push is refused (D-098). The check does not depend on the order in which callbacks were registered.
+     */
     static final class RecordSuccess implements Action<Task> {
         private final Provider<GitPublisherService> service;
         private final String taskPath;
+        private final int expectedActions;
 
-        RecordSuccess(Provider<GitPublisherService> service, String taskPath) {
+        RecordSuccess(Provider<GitPublisherService> service, String taskPath, int expectedActions) {
             this.service = service;
             this.taskPath = taskPath;
+            this.expectedActions = expectedActions;
         }
 
         @Override
         public void execute(Task task) {
+            int actual = task.getActions().size();
+            if (actual != expectedActions) {
+                LOGGER.warn("git-maven-publisher: " + taskPath + " has " + (actual - expectedActions)
+                        + " action(s) that run after the publication record (or fewer actions than expected), so its"
+                        + " outcome is not known and it is not recorded as successful; nothing will be pushed."
+                        + " Do not add actions to publication tasks after the task graph is ready.");
+                return;
+            }
             service.get().recordSuccess(taskPath);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<String> recordedParticipants(Project project) {
+        ExtraPropertiesExtension extra = project.getGradle().getExtensions().getExtraProperties();
+        synchronized (GitMavenPublisherPlugin.class) {
+            if (!extra.has(RECORDED_KEY)) {
+                extra.set(RECORDED_KEY, ConcurrentHashMap.newKeySet());
+            }
+            return (Set<String>) extra.get(RECORDED_KEY);
         }
     }
 
