@@ -1,0 +1,37 @@
+/*
+ * Copyright (c) 2026 ZenWave's Authors and Contributors
+ *
+ * Licensed under the MIT License; see the LICENSE file in the project root.
+ */
+// Self-publication of the Gradle plugin with this plugin (T45, D-111). Used by .github/workflows/publish-maven-snapshots.yml:
+//   ./gradlew -p gradle-plugin publishToMavenLocal -x test                 (installs the plugin built from this commit)
+//   ./gradlew -p gradle-plugin -I gradle-plugin/self-publish.init.gradle publishAllPublicationsToGitPublisherRepository
+// The init script puts the installed plugin on its classpath and applies it to the build that produced it, so the plugin jar and
+// its marker are published to the snapshots repository by the plugin itself, built from the same commit.
+// Environment: PLUGIN_VERSION (required, the -SNAPSHOT version), SELF_PUBLISH_REPOSITORY (default: zenwave360/maven-snapshots),
+// SELF_PUBLISH_BRANCH (default: gh-pages), GIT_PUBLISHER_TOKEN (read by the plugin, never by this script).
+initscript {
+    def pluginVersion = System.getenv('PLUGIN_VERSION')
+    if (!pluginVersion) {
+        throw new GradleException('PLUGIN_VERSION is not set')
+    }
+    repositories {
+        mavenLocal {
+            content {
+                includeGroup 'io.github.ivangsa'
+            }
+        }
+        mavenCentral()
+    }
+    dependencies {
+        classpath "io.github.ivangsa:git-maven-publisher-gradle-plugin:${pluginVersion}"
+    }
+}
+
+allprojects {
+    apply plugin: io.github.ivangsa.gitpublisher.gradle.GitMavenPublisherPlugin
+    extensions.configure('gitMavenPublisher') {
+        it.repository = System.getenv('SELF_PUBLISH_REPOSITORY') ?: 'https://github.com/zenwave360/maven-snapshots.git'
+        it.branch = System.getenv('SELF_PUBLISH_BRANCH') ?: 'gh-pages'
+    }
+}

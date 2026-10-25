@@ -5,7 +5,11 @@
 """Checks a Maven Central bundle produced by `./mvnw -Prelease deploy -Dcentral.skipUpload=true` (T32a, D-072).
 
 Usage (run with -I, see docs/decisions.md D-077):
-  python3 -I scripts/verify-central-bundle.py <bundle.zip> <version> <key-fingerprint> <gnupg-homedir>
+  python3 -I scripts/verify-central-bundle.py [--gradle-plugin] <bundle.zip> <version> <key-fingerprint> <gnupg-homedir>
+
+With --gradle-plugin the bundle is the one of `./gradlew -p gradle-plugin centralBundle` (T45, D-111): the plugin jar
+(.pom, .jar, -sources.jar, -javadoc.jar, .module) and the plugin marker (.pom only; its POM must depend on the plugin jar
+of the same version). Without it, the bundle is the Maven one.
 
 Checks, per published artifact (parent POM, core, maven-plugin):
   - the exact file set: .pom, and for jars .jar, -sources.jar, -javadoc.jar; nothing else under io/github/ivangsa;
@@ -19,6 +23,7 @@ Exit status 0 only when every check passes. Prints no key material, only the fin
 """
 
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -35,6 +40,10 @@ ARTIFACTS = [
     ("git-maven-publisher-maven-plugin", "jar"),
 ]
 REQUIRED_POM_FIELDS = ["name", "description", "url"]
+# The Gradle plugin bundle (T45, D-111): the plugin jar, and the plugin marker whose groupId is the plugin id.
+PLUGIN_ARTIFACT = "git-maven-publisher-gradle-plugin"
+MARKER_GROUP_PATH = "io/github/ivangsa/git-maven-publisher"
+MARKER_ARTIFACT = "io.github.ivangsa.git-maven-publisher.gradle.plugin"
 
 
 def expected_files(version):
@@ -48,6 +57,49 @@ def expected_files(version):
             files[f"{base}-sources.jar"] = "sources"
             files[f"{base}-javadoc.jar"] = "javadoc"
     return files
+
+
+def expected_gradle_plugin_files(version):
+    """Same, for the Gradle plugin bundle (kind also: module for Gradle Module Metadata, marker for the marker POM; the marker is POM-only)."""
+    base = f"{GROUP_PATH}/{PLUGIN_ARTIFACT}/{version}/{PLUGIN_ARTIFACT}-{version}"
+    marker = f"{MARKER_GROUP_PATH}/{MARKER_ARTIFACT}/{version}/{MARKER_ARTIFACT}-{version}"
+    return {
+        f"{base}.pom": "pom",
+        f"{base}.jar": "jar",
+        f"{base}-sources.jar": "sources",
+        f"{base}-javadoc.jar": "javadoc",
+        f"{base}.module": "module",
+        f"{marker}.pom": "marker",
+    }
+
+
+def check_marker(entry, data, version, failures):
+    """The marker POM points to the plugin jar: a dependency on the plugin artifact at the same version."""
+    try:
+        root = ET.fromstring(data)
+    except ET.ParseError:
+        return  # reported by check_pom
+    dependencies = child(root, "dependencies")
+    found = False
+    for dep in (list(dependencies) if dependencies is not None else []):
+        if (text_of(dep, "groupId") == "io.github.ivangsa" and text_of(dep, "artifactId") == PLUGIN_ARTIFACT
+                and text_of(dep, "version") == version):
+            found = True
+    if not found:
+        failures.append(f"{entry}: the marker does not depend on io.github.ivangsa:{PLUGIN_ARTIFACT}:{version}")
+    if text_of(root, "groupId") != "io.github.ivangsa.git-maven-publisher" or text_of(root, "artifactId") != MARKER_ARTIFACT:
+        failures.append(f"{entry}: the marker coordinates are not the plugin id and its .gradle.plugin artifact")
+
+
+def check_module(entry, data, failures):
+    """Gradle Module Metadata is JSON with a formatVersion and variants."""
+    try:
+        doc = json.loads(data)
+    except ValueError as e:
+        failures.append(f"{entry}: not valid JSON ({e})")
+        return
+    if "formatVersion" not in doc or not doc.get("variants"):
+        failures.append(f"{entry}: Gradle module metadata without formatVersion or variants")
 
 
 def strip_ns(tag):
@@ -164,6 +216,8 @@ def check_signature(zf, entry, data, homedir, fingerprint, failures, workdir):
 
 
 def main(argv):
+    gradle_plugin = "--gradle-plugin" in argv
+    argv = [a for a in argv if a != "--gradle-plugin"]
     if len(argv) != 5:
         print(__doc__, file=sys.stderr)
         return 2
@@ -176,7 +230,7 @@ def main(argv):
         return 2
 
     failures = []
-    expected = expected_files(version)
+    expected = expected_gradle_plugin_files(version) if gradle_plugin else expected_files(version)
     with zipfile.ZipFile(bundle) as zf, tempfile.TemporaryDirectory() as workdir:
         names = zf.namelist()
         leaked = [n for n in names if "test-fixtures" in n]
@@ -190,6 +244,8 @@ def main(argv):
             for suffix in (".asc", ".md5", ".sha1", ".sha256", ".sha512"):
                 allowed.add(entry + suffix)
         for n in names:
+            if n.endswith("/"):
+                continue  # directory entries: `zip -r`, which Central documents, writes them too
             if n.startswith(GROUP_PATH + "/") and n not in allowed:
                 failures.append(f"{n}: unexpected file in the bundle")
         for entry, kind in expected.items():
@@ -197,8 +253,12 @@ def main(argv):
                 failures.append(f"{entry}: missing from the bundle")
                 continue
             data = zf.read(entry)
-            if kind == "pom":
+            if kind in ("pom", "marker"):
                 check_pom(entry, data, failures)
+                if kind == "marker":
+                    check_marker(entry, data, version, failures)
+            elif kind == "module":
+                check_module(entry, data, failures)
             else:
                 check_jar(entry, kind, data, failures)
             check_checksums(zf, entry, data, failures)

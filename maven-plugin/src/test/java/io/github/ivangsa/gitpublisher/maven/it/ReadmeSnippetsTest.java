@@ -47,8 +47,8 @@ class ReadmeSnippetsTest {
     }
 
     /**
-     * Text of every fenced code block, without the fences, except the Gradle ones ({@code groovy} blocks and {@code ./gradlew}
-     * commands): those are checked by {@code ReadmeGradleSnippetsTest} (T44, D-094).
+     * Text of every fenced code block, without the fences, except the Gradle ones ({@code groovy} and {@code groovy settings.gradle}
+     * blocks and {@code ./gradlew} commands): those are checked by {@code ReadmeGradleSnippetsTest} (T44, D-094, D-111).
      */
     static List<String> snippets(String markdown) {
         List<String> snippets = new ArrayList<>();
@@ -58,7 +58,7 @@ class ReadmeSnippetsTest {
             if (line.startsWith("```")) {
                 if (current == null) {
                     current = new StringBuilder();
-                    gradle = line.equals("```groovy");
+                    gradle = line.equals("```groovy") || line.equals("```groovy settings.gradle");
                 } else {
                     String text = current.toString().stripTrailing();
                     if (!gradle && !text.startsWith("./gradlew ")) {

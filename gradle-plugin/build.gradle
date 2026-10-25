@@ -5,8 +5,9 @@
  */
 plugins {
     id 'java-gradle-plugin'
-    // Plugin Portal publication and the plugin marker (T45, D-095). Used by the release caller job only.
-    id 'com.gradle.plugin-publish' version '2.2.1'
+    // Publication to Maven Central (T45, D-111): the plugin jar and the plugin marker, signed, as one Central Portal bundle.
+    id 'maven-publish'
+    id 'signing'
 }
 
 // The version is owned by the root pom.xml (D-083): release:prepare bumps both builds. The file is read through
@@ -37,6 +38,14 @@ repositories {
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
+    // Central requires sources and javadoc jars next to the jar.
+    withSourcesJar()
+    withJavadocJar()
+}
+
+tasks.withType(Javadoc).configureEach {
+    options.encoding = 'UTF-8'
+    (options as StandardJavadocDocletOptions).addStringOption('Xdoclint:none', '-quiet')
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -68,7 +77,94 @@ gradlePlugin {
             implementationClass = 'io.github.ivangsa.gitpublisher.gradle.GitMavenPublisherPlugin'
             displayName = 'git-maven-publisher'
             description = 'Turns a Git repository into a Maven snapshot repository served as static files.'
-            tags.set(['maven', 'git', 'publishing', 'snapshots', 'static-site'])
+        }
+    }
+}
+
+// ---- Publication to Maven Central (T45, D-111) ----------------------------------------------------------------------
+// java-gradle-plugin + maven-publish create two kinds of publications: `pluginMaven` (the jar, sources, javadoc, .module)
+// and one marker per plugin id (`gitMavenPublisherPluginMarkerMaven`, a POM-only artifact
+// io.github.ivangsa.git-maven-publisher:io.github.ivangsa.git-maven-publisher.gradle.plugin that points to the jar).
+// Both are published to a local staging repository, signed, and zipped as a Central Portal bundle (`centralBundle`).
+// The workflow uploads the bundle with the Portal API; Gradle never sees the Central credentials.
+publishing {
+    publications.withType(MavenPublication).configureEach { publication ->
+        pom {
+            // Markers get their own name: the Central Portal lists it. The jar publication is named after the module.
+            name = publication.name == 'pluginMaven' ? 'git-maven-publisher Gradle plugin' : 'git-maven-publisher Gradle plugin marker'
+            description = 'Turns a Git repository into a Maven snapshot repository served as static files.'
+            url = 'https://github.com/ivangsa/git-maven-publisher'
+            inceptionYear = '2026'
+            licenses {
+                license {
+                    name = 'MIT License'
+                    url = 'https://opensource.org/licenses/MIT'
+                    distribution = 'repo'
+                }
+            }
+            developers {
+                developer {
+                    id = 'ivangsa'
+                    name = 'Ivan Garcia Sainz-Aja'
+                    url = 'https://github.com/ivangsa'
+                }
+            }
+            scm {
+                url = 'https://github.com/ivangsa/git-maven-publisher'
+                connection = 'scm:git:https://github.com/ivangsa/git-maven-publisher.git'
+                developerConnection = 'scm:git:https://github.com/ivangsa/git-maven-publisher.git'
+                tag = 'HEAD'
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = 'centralStaging'
+            url = layout.buildDirectory.dir('central-staging')
+        }
+    }
+}
+
+// In-memory key from the environment: SIGN_KEY is the armored private key, SIGN_KEY_PASS its passphrase. Nothing is written to
+// disk. Without SIGN_KEY (local builds, the snapshot publication) nothing is signed.
+def signKey = providers.environmentVariable('SIGN_KEY')
+def signKeyPass = providers.environmentVariable('SIGN_KEY_PASS')
+signing {
+    required = false
+    if (signKey.present) {
+        useInMemoryPgpKeys(signKey.get(), signKeyPass.orElse('').get())
+        sign publishing.publications
+    }
+}
+
+def cleanCentralStaging = tasks.register('cleanCentralStaging', Delete) {
+    delete layout.buildDirectory.dir('central-staging')
+}
+tasks.withType(PublishToMavenRepository).configureEach {
+    if (name.endsWith('ToCentralStagingRepository')) {
+        dependsOn cleanCentralStaging
+    }
+}
+
+// The Central Portal bundle: the staging repository without maven-metadata.xml (Central generates its own), as a zip.
+def centralBundle = tasks.register('centralBundle', Zip) {
+    group = 'publishing'
+    description = 'Builds the Central Portal bundle of the plugin jar and its marker (release versions, signed).'
+    dependsOn 'publishAllPublicationsToCentralStagingRepository'
+    from(layout.buildDirectory.dir('central-staging')) {
+        // Central generates its own metadata, and takes no checksums of signatures (the Maven bundle has none either).
+        exclude '**/maven-metadata.xml*', '**/*.asc.*'
+    }
+    includeEmptyDirs = false
+    destinationDirectory = layout.buildDirectory.dir('central-bundle')
+    archiveFileName = "git-maven-publisher-gradle-plugin-${pomVersion}-central-bundle.zip"
+    def snapshot = pomVersion.endsWith('-SNAPSHOT')
+    doFirst {
+        if (snapshot) {
+            throw new GradleException("Central takes release versions only; the version is ${pomVersion}")
+        }
+        if (!signKey.present) {
+            throw new GradleException('SIGN_KEY is not set: a Central bundle must be signed')
         }
     }
 }
@@ -77,6 +173,10 @@ tasks.named('test', Test) {
     useJUnitPlatform()
     // The Maven plugin under test is the one installed by ./mvnw install (D-075); MixedRepositoryTest runs it.
     systemProperty 'gitMavenPublisher.version', pomVersion
+    // The plugin and its marker, published to a local repository (the staging repository of the Central bundle): ReadmeGradleSnippetsTest
+    // resolves the plugin by its id from it, the way the README snapshot snippet does.
+    dependsOn 'publishAllPublicationsToCentralStagingRepository'
+    systemProperty 'gitMavenPublisher.stagingRepository', layout.buildDirectory.dir('central-staging').get().asFile.absolutePath
     // TestKit builds start their own daemons; keep output small, fail loudly.
     testLogging {
         events 'failed', 'skipped'

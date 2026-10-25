@@ -28,6 +28,9 @@ all written to the same repository in one transaction. `.module` files name `-SN
 `-SNAPSHOT` to the timestamp of the module it read (D-088), so every publication of one build must share one timestamp: publish in place in one
 transaction, never re-deploy from a staging copy.
 
+## Publication (T45, D-111)
+Releases: `./gradlew -p gradle-plugin centralBundle` (release version, `SIGN_KEY`/`SIGN_KEY_PASS`) builds the signed Central bundle of the jar and the marker; the release job uploads it to the Central Portal (no Plugin Portal). Snapshots: `gradle-plugin/self-publish.init.gradle` applies the installed plugin to its own build and publishes to `zenwave360/maven-snapshots`. Composite builds publish once per build (README, design section 2).
+
 ## Tests
 Gradle TestKit: multi-project single commit; failure in any participant → no push, also with `--continue`; `--parallel` never pushes early;
 one selected subproject publishes; `--configuration-cache` reuse keeps all of these. KMP sample (JVM, JS, one native),

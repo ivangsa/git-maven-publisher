@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP), except T45 [?] (Q12, Plugin Portal key) and R35 [?] (Q13, composite builds) · validation cadence D-092 · next: maintainer answers Q12/Q13, develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110)
+**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · next: re-review of BR15, BL1, BR16, develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111)
 
 ## Batches
 
@@ -45,22 +45,23 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | B15 | T34, T35, T36, T37 | implementer | gradle-plugin | | done |
 | B16 | T38, T39, T40 | implementer | gradle-plugin, testing | | done |
 | B17 | T41, T42 | implementer | gradle-plugin, testing | | done |
-| B18 | T43, T44, T45 | mechanic | gradle-plugin | | partial: T44 done; T43 needs-implementer (D-093), moved to B18b; T45 [?] (Q12) |
+| B18 | T43, T44, T45 | mechanic | gradle-plugin | | partial: T44 done; T43 needs-implementer (D-093), moved to B18b; T45 moved to BR16 (redefined, D-111) |
 | B18b | T43 (Gradle 8.x configuration-cache scan, D-093, D-096) | implementer | gradle-plugin, testing | yes (end of Phase 2) | done |
 | BR9 | R26, R29 (Gradle participant failure and skip; restores T36) | implementer | gradle-plugin, testing | | done |
 | BR10 | R28, R27, R30, R31 (line endings, Gradle release gate, docs, self-publication consumer; restores T44) | mechanic | gradle-plugin | yes (re-review of BR9, BR10) | done |
 | BR11 | R32 (late whenReady action after the success record; restores T36, R26) | implementer | gradle-plugin, testing | yes (re-review of BR11) | done |
-| BR12 | R33, R34 (record must be the last action, README late-action rule; R35 [?] Q13) | implementer (opus, escalation) | gradle-plugin, testing | yes (re-review of BR12) | done |
+| BR12 | R33, R34 (record must be the last action, README late-action rule; R35 moved to BR16) | implementer (opus, escalation) | gradle-plugin, testing | yes (re-review of BR12) | done |
 | B19 | T47, T48 (retention) | implementer | core | yes (retention) | done |
 | BR13 | R36, R37, R38, R39, R40 (keepVersions keeps touched versions, https release check, release repository in Maven and Gradle, check cost, design wording) | implementer | core, maven-plugin, gradle-plugin | yes (re-review of BR13) | done |
 | BR14 | R41 (Maven Wrapper runs on native Windows under PowerShell 5.1 and 7, D-108; restores T01) | mechanic | - | yes (re-review of BR13, BR14) | done |
 | BR15 | R42 (release repository URL with a query or fragment) | implementer | core | yes (re-review of BR15) | done |
 | BL1 | License switched from Apache 2.0 to MIT (D-110, maintainer decision 2026-10-25; headers, POM licenses, docs; third-party Apache files unchanged) | mechanic | - | | done |
+| BR16 | T45 (redefined: Gradle plugin to Maven Central), R35 (docs), T51 dropped (D-111) | implementer | gradle-plugin, testing | yes (re-review of BR15, BL1, BR16) | done |
 | B20 | T49 | implementer | maven-plugin, gradle-plugin | | todo |
-| B21 | T50, T51, T52 | mechanic | testing | yes (end of Phase 3) | todo (T51 needs Q7) |
+| B21 | T50, T52 (T51 dropped, Q7) | mechanic | testing | yes (end of Phase 3) | todo |
 | manual | T33 | maintainer | - | | after T32b (self-publication part after the repo is public, D-074); not dispatched to an agent |
 
-Legend: `[ ]` todo · `[x]` done · `[?]` blocked on a question in `docs/questions.md` · `[!]` failed review verification (see linked review).
+Legend: `[ ]` todo · `[x]` done · `[-]` dropped by the maintainer · `[?]` blocked on a question in `docs/questions.md` · `[!]` failed review verification (see linked review).
 Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradlew -p gradle-plugin build` once it exists), per the done rule in AGENTS.md.
 
 ## Phase 0: test harness (no production code)
@@ -264,9 +265,9 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
   Done when: all legs green.
 - [x] T44 Gradle user docs ([review 2026-10-25-8439f3c](reviews/2026-10-25-8439f3c.md), F3, R28; restored by R28)
   Done when: README Gradle snippets are copied from passing TestKit builds.
-- [?] T45 Plugin Portal publishing (see Q12)
-  Plugin marker and portal config.
-  Done when: `publishPlugins --validate-only` passes.
+- [x] T45 Gradle plugin publishing to Maven Central (redefined by the maintainer 2026-10-25: no Plugin Portal account, Q12 closed; D-111)
+  `maven-publish` and `signing` in `gradle-plugin/build.gradle`: the plugin jar and its marker with POM metadata, sources and javadoc jars, signed from `SIGN_KEY`/`SIGN_KEY_PASS`, as a Central Portal bundle uploaded by the release job (`USER_MANAGED`, published by hand). Snapshots: the self-publication workflow publishes the jar and marker to `zenwave360/maven-snapshots` with this plugin, and a clean consumer applies the plugin by its id.
+  Done when: the bundle built at a release version with a throwaway key passes `scripts/verify-central-bundle.py --gradle-plugin`, `actionlint` passes, and the snapshot publication and its consumer job are green on `develop`.
 
 ## Phase 3: hardening
 
@@ -282,9 +283,8 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [ ] T50 GitHub Actions templates
   Publish workflow with a `concurrency` group covering every coordinate of the project (PAT and `GITHUB_TOKEN` variants). No Pages deployment template (D-043).
   Done when: templates linted with `actionlint` in CI and used by the dogfood repo.
-- [ ] T51 Nightly end-to-end
-  Scheduled workflow publishing to a real public GitHub repo and resolving with clean consumers through `raw.githubusercontent.com`. (Needs Q7.)
-  Done when: three consecutive green nightly runs.
+- [-] T51 Nightly end-to-end (dropped: Q7 answered 2026-10-25, releases on demand, no nightly; D-111)
+  Was: scheduled workflow publishing to a real public GitHub repo. The self-publication consumer jobs (T60, T45) are the end-to-end check on every push to `develop`.
 - [ ] T52 Guide: publishing with a GitHub App token in GitHub Actions
   Docs page: create the App (`Contents: write`), install it on the snapshots repo, mint the token with `actions/create-github-app-token`, pass it as `GIT_PUBLISHER_TOKEN`; compare with fine-grained PAT and `GITHUB_TOKEN`.
   Done when: the workflow snippet in the guide is the one used by T50's template and passes `actionlint`.
@@ -400,7 +400,7 @@ Review test: `gradle-plugin/src/test/java/io/github/ivangsa/gitpublisher/gradle/
 - [x] R26 A participant that fails after its publish action must not be pushed (major, F1; [review 2026-10-25-53fd0c7](reviews/2026-10-25-53fd0c7.md), F1, R32)
   Record a participant's success only when the task as a whole succeeded (no action of the task may run after the record); configuration cache kept.
   Done when: `R26LateParticipantFailureReviewTest` passes (default and `--continue`), all lifecycle and configuration-cache tests pass and the full build passes. Restore T36.
-- [x] R27 Publish the Gradle plugin only after core is on Central (major, F2)
+- [x] R27 Publish the Gradle plugin only after core is on Central (major, F2; gate replaced by a publication order in the Central Portal, D-111)
   `release-from-notes.yml` job `gradle-plugin` runs while the Central deployment (`autoPublish` false) is unpublished. Gate `publishPlugins` on core X being
   resolvable from Central (check step that fails, or a separate maintainer-dispatched step after the Central publish); fix the workflow comment; record in decisions.
   Done when: `actionlint` passes and the workflow cannot reach `publishPlugins` while `git-maven-publisher-core:X` is absent from Central.
@@ -441,7 +441,7 @@ Review test: `gradle-plugin/src/test/java/io/github/ivangsa/gitpublisher/gradle/
   README Gradle section states that publication tasks must not get actions after the task graph is ready and that any such action, even a successful one,
   fails the build with nothing pushed (D-103). Mark the D-097 "Limit" bullet as revised by D-103.
   Done when: README and decisions updated, `ReadmeGradleSnippetsTest` passes.
-- [?] R35 Composite builds: decide one publication or one per build (minor, F3)
+- [x] R35 Composite builds: decide one publication or one per build (minor, F3; Q13 answered A: one publication per build, docs only, D-111)
   An included build's failed participant does not stop the root build's push (two services, two pushes). Ask the maintainer in docs/questions.md; record the
   answer in design section 2, decisions and README; if one publication per invocation, make the push fail closed across included builds with a TestKit test.
   Done when: the decision is recorded and, if behaviour changes, its test passes with the full build.

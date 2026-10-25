@@ -175,7 +175,7 @@ Artifacts:
 - `git-maven-publisher-maven-plugin`: one Maven project, Java 17, JGit; core logic in packages with no Maven or Gradle APIs; Maven 3.10+ and Maven 4.
 - `git-maven-publisher-gradle-plugin`: separate Gradle build, Gradle 8.x+. How it reuses the core code is decided before Phase 2.
 
-Distribution: own GitHub repository, MIT, groupId `io.github.ivangsa`, published to Maven Central. The Gradle plugin also goes to the Gradle Plugin Portal through the plugin marker. Neutral naming keeps a later donation open (MojoHaus for the Maven plugin, or Commonhaus Foundation for the whole project) without renaming.
+Distribution: own GitHub repository, MIT, groupId `io.github.ivangsa`, published to Maven Central. The Gradle plugin and its plugin marker are published to Maven Central too, with no Gradle Plugin Portal account (D-111). Neutral naming keeps a later donation open (MojoHaus for the Maven plugin, or Commonhaus Foundation for the whole project) without renaming.
 
 ## Testing and acceptance
 

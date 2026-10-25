@@ -32,6 +32,8 @@ class ReadmeGradleSnippetsTest {
     /** The README sits in the root of the repository; Gradle tests run with the module directory as working directory. */
     private static final Path README = Path.of("..", "README.md");
     private static final Path SETUP = Path.of("src/test/resources/readme/build.gradle");
+    private static final Path SETTINGS = Path.of("src/test/resources/readme/settings.gradle");
+    private static final String SNAPSHOTS_SITE = "https://www.zenwave.io/maven-snapshots/";
     private static final String REPOSITORY_PLACEHOLDER = "https://github.com/<owner>/<snapshots-repo>.git";
     private static final String BRANCH = "snapshots";
 
@@ -73,6 +75,42 @@ class ReadmeGradleSnippetsTest {
             MetadataAssertions.assertValidRepository(checkout);
             assertTrue(Files.exists(checkout.resolve("com/acme/readme-lib/1.0-SNAPSHOT/maven-metadata.xml")));
         }
+    }
+
+    @Test
+    void thePluginManagementSnippetIsTheSettingsFileThatTheTestRuns() throws IOException {
+        List<String> snippets = fencedBlocks("groovy settings.gradle");
+        assertEquals(1, snippets.size(), "one settings.gradle block in README.md");
+        assertEquals(lineFeeds(Files.readString(SETTINGS, UTF_8)).strip(), snippets.get(0).strip());
+    }
+
+    /**
+     * The snapshots snippet resolves the plugin by its id: the settings file of the README, with the site replaced by a
+     * repository holding what {@code publishAllPublicationsToCentralStagingRepository} published (the plugin jar and its
+     * marker, as the snapshot publication of the workflow does), and {@code mavenLocal()} added for core (installed by
+     * {@code ./mvnw install}, D-075). No plugin classpath is injected: the id resolves through the marker only.
+     */
+    @Test
+    void thePluginManagementSnippetResolvesThePluginByItsIdFromTheMarker() throws IOException {
+        String version = System.getProperty("gitMavenPublisher.version");
+        Path staging = Path.of(System.getProperty("gitMavenPublisher.stagingRepository"));
+        assertTrue(Files.isDirectory(staging.resolve("io/github/ivangsa/git-maven-publisher/"
+                + "io.github.ivangsa.git-maven-publisher.gradle.plugin")), "the marker is in the staging repository");
+        Path project = Files.createDirectories(dir.resolve("marker-project"));
+        String settings = lineFeeds(Files.readString(SETTINGS, UTF_8))
+                .replace(SNAPSHOTS_SITE, staging.toUri().toString())
+                .replace("gradlePluginPortal()", "mavenLocal()\n        gradlePluginPortal()");
+        Files.writeString(project.resolve("settings.gradle"), settings + "rootProject.name = 'marker-consumer'\n");
+        Files.writeString(project.resolve("build.gradle"), "plugins {\n"
+                + "    id 'io.github.ivangsa.git-maven-publisher' version '" + version + "'\n}\n"
+                + "println 'EXTENSION=' + (project.extensions.findByName('gitMavenPublisher') != null)\n");
+
+        BuildResult result = GradleRunner.create()
+                .withProjectDir(project.toFile())
+                .withArguments("help", "--stacktrace")
+                .build();
+
+        assertTrue(result.getOutput().contains("EXTENSION=true"), result.getOutput());
     }
 
     private static List<String> gradleCommands() throws IOException {

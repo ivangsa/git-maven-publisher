@@ -110,6 +110,23 @@ Do not change the actions of a publication task after the task graph is ready (f
 
 Set the token as described in [Authentication](#authentication). Do not write it into the build script: a value set there is stored with the build configuration. On Gradle 8.x, prefer the environment variable to a `-P` property: Gradle stores every `-P` value in the configuration cache entry (see Authentication).
 
+### Composite builds
+
+With `includeBuild`, the root build and every included build publish on their own: each build has its own transaction and its own push, so one Gradle invocation can produce one commit per build, and a failed publication in an included build does not stop the root build from pushing its own. For an all-or-nothing publication, run the publication task from one build per invocation (for example, a single multi-project build instead of an included build).
+
+### Where the plugin comes from
+
+Releases of the plugin are published to Maven Central only (the plugin jar and its plugin marker), not to the Gradle Plugin Portal. The default `gradlePluginPortal()` still resolves them: the Portal redirects a marker it does not hold to Maven Central, so the `plugins { id ... version '0.1.0' }` block of the setup above needs no repository declaration. Snapshots of the plugin are published to the snapshots repository of this project by the plugin itself, on every push to `develop`. To use one, add the snapshots site before the Plugin Portal in `settings.gradle`, and use the `-SNAPSHOT` version in the `plugins` block:
+
+```groovy settings.gradle
+pluginManagement {
+    repositories {
+        maven { url = uri('https://www.zenwave.io/maven-snapshots/') }
+        gradlePluginPortal()
+    }
+}
+```
+
 ## Authentication
 
 Tokens reach the plugin in one of three ways, in this order: the `settings.xml` server named by `serverId` (Maven), the environment variable `GIT_PUBLISHER_TOKEN`, or anonymous (only for `file` repositories). Gradle reads the environment variable, then the Gradle property `gitPublisherToken` (for example in `~/.gradle/gradle.properties`, never in the project). A token never goes into the POM or build script, into the remote URL, the Git config or a log line.

@@ -22,7 +22,9 @@ The Gradle adapter is a separate Gradle build in `gradle-plugin/` (D-002), Phase
 - Dependencies follow the module that uses them: core has JGit at compile scope; test-fixtures has JGit and the Maven oracles; the Maven plugin has the Maven API `provided`. Test-fixtures never depends on core, so the reactor has no cycle.
 - Maven Wrapper pinned to 3.10.x. `--release 17`, any JDK ≥ 17 can build. JUnit 5, AssertJ.
 - Full build = `./mvnw verify` from the root (all modules, all unit tests, ITs and invoker ITs), plus `./mvnw install` and `./gradlew -p gradle-plugin build` once the Gradle build exists. No Docker needed.
-- Three artifacts are published for the first release (T32a): parent, core and Maven plugin.
+- Three artifacts are published for the first release (T32a): parent, core and Maven plugin. The Gradle plugin jar and its plugin marker
+  (`io.github.ivangsa.git-maven-publisher:io.github.ivangsa.git-maven-publisher.gradle.plugin`) are a second Central deployment of the same release
+  (T45, D-111); there is no Gradle Plugin Portal publication. Snapshots of the Gradle plugin go to the snapshots repository, published by the plugin itself.
 
 ## 2. Public configuration
 
@@ -112,6 +114,10 @@ gitMavenPublisher {
   concurrent writers to one (`maxParallelUsages = 1`), so two publications never write metadata at the same time.
 - **Cleanup:** releases temporary state only. `BuildService.close()` never publishes.
 - Configuration-cache compatible: no `Project` access at execution time.
+- **Composite builds (R35, D-111):** the lifecycle above is per build. With `includeBuild`, the root build and each included build have their own
+  build service, so each publishes on its own: one transaction and one push per build, and a failed participant in one build does not stop another
+  build's push. One Gradle invocation may therefore produce one commit per build. For an all-or-nothing publication, run the publication task from one
+  build per invocation (README, "Composite builds").
 
 ## 3. Core API
 
@@ -271,7 +277,7 @@ independent metadata oracle. The native deploy tools are.
 
 Do not replace any of these with a fake repository manager or synthetic artifacts that reproduce our own assumptions.
 
-Levels: unit (`*Test`, surefire), integration (`*IT`, failsafe), plugin ITs (`maven-invoker-plugin` in `maven-plugin/src/it`, Gradle TestKit), nightly E2E against a real GitHub repository.
+Levels: unit (`*Test`, surefire), integration (`*IT`, failsafe), plugin ITs (`maven-invoker-plugin` in `maven-plugin/src/it`, Gradle TestKit). The self-publication workflow resolves the pushed snapshots in clean consumers (T60, T45); there is no scheduled nightly (Q7, D-111).
 The default build runs everything. No `@Disabled`, no skipped tests in a passing build.
 
 ## 10. Operational limits (D-036)

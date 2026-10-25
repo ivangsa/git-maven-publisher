@@ -44,11 +44,13 @@ jobs:
       SIGN_KEY: ${{ secrets.SIGN_KEY }}
       SIGN_KEY_PASS: ${{ secrets.SIGN_KEY_PASS }}
 
-  # Gradle plugin to the Plugin Portal (D-083, D-100). Runs after the Maven release job, which only uploads the Central deployment
-  # (autoPublish is false): core is on Central only after the maintainer publishes that deployment. The step before publishPlugins
-  # fails while core is absent; publish the deployment, then re-run this job. It builds the tag v<version> that release-maven
-  # created. The version is the one of the root pom.xml, which the Gradle build reads (D-085).
-  # Secrets are passed by name; the Plugin Portal reads GRADLE_PUBLISH_KEY and GRADLE_PUBLISH_SECRET from the environment.
+  # Gradle plugin to Maven Central (D-083, D-111; no Plugin Portal account). Runs after the Maven release job and uploads a second
+  # Central deployment: the plugin jar and its marker (io.github.ivangsa.git-maven-publisher.gradle.plugin), signed with the same
+  # key. publishingType is USER_MANAGED, like autoPublish false on the Maven side: the maintainer publishes both deployments in the
+  # Central Portal, the core deployment first (the plugin depends on core). Users resolve the release through the default
+  # gradlePluginPortal(), which redirects marker requests that exist only on Central to Maven Central.
+  # It builds the tag v<version> that release-maven created. The version is the one of the root pom.xml, which the Gradle build
+  # reads (D-085). Secrets are passed by name, only to the steps that need them.
   gradle-plugin:
     needs: release
     runs-on: ubuntu-latest
@@ -81,21 +83,33 @@ jobs:
       - name: Install core into the local Maven repository
         run: ./mvnw -B -ntp install -DskipTests -Dinvoker.skip=true
 
-      # Gate before publishPlugins (D-100). No secret here. Central serves core only after the maintainer has published the
-      # Central deployment of this release; until then the job stops, the Plugin Portal is not touched, and the job is re-run.
-      - name: Check that core is on Maven Central
+      # The Gradle build signs with the in-memory key of SIGN_KEY / SIGN_KEY_PASS (never written to disk) and zips the staging
+      # repository into the Central Portal bundle. No Central credentials here.
+      - name: Build the signed Central bundle of the Gradle plugin
         env:
+          SIGN_KEY: ${{ secrets.SIGN_KEY }}
+          SIGN_KEY_PASS: ${{ secrets.SIGN_KEY_PASS }}
+        run: ./gradlew -p gradle-plugin centralBundle
+
+      # Central Portal API: POST /api/v1/publisher/upload, bearer token = base64(username:token). The header goes to curl on
+      # stdin, not on the command line. publishingType=USER_MANAGED: the deployment waits in the Portal until it is published by hand.
+      - name: Upload the bundle to the Central Portal
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_TOKEN: ${{ secrets.CENTRAL_TOKEN }}
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          core_pom="https://repo1.maven.org/maven2/io/github/ivangsa/git-maven-publisher-core/${RELEASE_VERSION}/git-maven-publisher-core-${RELEASE_VERSION}.pom"
-          if ! curl --silent --show-error --fail --location --output /dev/null "${core_pom}"; then
-            echo "git-maven-publisher-core ${RELEASE_VERSION} cannot be fetched from Maven Central: ${core_pom}" >&2
-            echo "Publish the Central deployment of this release (autoPublish is false), wait until Central serves it, then re-run this job." >&2
-            exit 1
-          fi
-
-      - name: Publish the Gradle plugin to the Plugin Portal
-        env:
-          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
-          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
-        run: ./gradlew -p gradle-plugin publishPlugins
+          bundle="gradle-plugin/build/central-bundle/git-maven-publisher-gradle-plugin-${RELEASE_VERSION}-central-bundle.zip"
+          bearer="$(printf '%s:%s' "${CENTRAL_USERNAME}" "${CENTRAL_TOKEN}" | base64 -w0)"
+          printf 'header = "Authorization: Bearer %s"\n' "${bearer}" | curl --silent --show-error --fail-with-body --max-time 600 \
+            --config - \
+            --request POST \
+            --form "bundle=@${bundle}" \
+            --output deployment-id.txt \
+            "https://central.sonatype.com/api/v1/publisher/upload?name=git-maven-publisher-gradle-plugin-${RELEASE_VERSION}&publishingType=USER_MANAGED"
+          deployment_id="$(cat deployment-id.txt)"
+          echo "Uploaded; Central deployment id: ${deployment_id}"
+          {
+            echo "### Gradle plugin deployment uploaded"
+            echo "Central deployment id: ${deployment_id}. Publish the core deployment first, then this one, in the Central Portal."
+          } >> "${GITHUB_STEP_SUMMARY}"
