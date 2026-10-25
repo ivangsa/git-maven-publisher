@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP), except T45 [?] (Q12, Plugin Portal key) and R35 [?] (Q13, composite builds) · validation cadence D-092 · next: maintainer answers Q12/Q13, develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107), re-review pending before B20
+**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP), except T45 [?] (Q12, Plugin Portal key) and R35 [?] (Q13, composite builds) · validation cadence D-092 · next: maintainer answers Q12/Q13, develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review of BR13 and BR14 pending before B20
 
 ## Batches
 
@@ -53,6 +53,7 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | BR12 | R33, R34 (record must be the last action, README late-action rule; R35 [?] Q13) | implementer (opus, escalation) | gradle-plugin, testing | yes (re-review of BR12) | done |
 | B19 | T47, T48 (retention) | implementer | core | yes (retention) | done |
 | BR13 | R36, R37, R38, R39, R40 (keepVersions keeps touched versions, https release check, release repository in Maven and Gradle, check cost, design wording) | implementer | core, maven-plugin, gradle-plugin | yes (re-review of BR13) | done |
+| BR14 | R41 (Maven Wrapper runs on native Windows under PowerShell 5.1 and 7, D-108; restores T01) | mechanic | - | yes (re-review of BR13, BR14) | done |
 | B20 | T49 | implementer | maven-plugin, gradle-plugin | | todo |
 | B21 | T50, T51, T52 | mechanic | testing | yes (end of Phase 3) | todo (T51 needs Q7) |
 | manual | T33 | maintainer | - | | after T32b (self-publication part after the repo is public, D-074); not dispatched to an agent |
@@ -65,7 +66,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T00 Project plan
   Brief, design, tasks, decisions, questions, CLAUDE.md.
   Done when: files committed as `T00: project plan`.
-- [!] T01 Build skeleton ([review 2026-10-25-3044006](reviews/2026-10-25-3044006.md), R41)
+- [x] T01 Build skeleton ([review 2026-10-25-3044006](reviews/2026-10-25-3044006.md), F1; restored by R41)
   Root `pom.xml` (Java 17 release, Apache 2.0, groupId `io.github.ivangsa`), Maven Wrapper 3.10.x, empty `core`, `test-fixtures`, `maven-plugin` modules, `.gitignore`, `LICENSE`, README stub, license-header check.
   Done when: `./mvnw verify` passes on a clean clone.
 - [x] T02 CI workflow
@@ -469,7 +470,7 @@ Review tests: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R36KeepV
 
 From [review 2026-10-25-3044006](reviews/2026-10-25-3044006.md) (committed-code validation, verdict FIX FIRST).
 
-- [ ] R41 Maven Wrapper runs on native Windows (critical, F1)
+- [x] R41 Maven Wrapper runs on native Windows (critical, F1; D-108)
   The committed `mvnw.cmd` indexes the null `DirectoryInfo.Target` property while determining its distribution directory, so every
   Codex-prescribed native-Windows wrapper invocation fails before Maven starts. Update the wrapper to handle a normal non-link
   `.m2` directory and prove `mvnw.cmd --batch-mode --no-transfer-progress -s C:/Users/ivangsa/.codex/maven/settings.xml verify`

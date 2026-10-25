@@ -932,3 +932,11 @@ Newest last. Format: date · decision · reason · alternatives rejected.
   - **R40.** Design section 6: "never deleted" now applies to *build* retention; `keepVersions` and release cleanup remove whole version directories, including the V-level metadata, plain jars and user files inside.
 - **Reason:** review 2026-10-25-250f684 (F1-F5).
 - **Rejected:** `keepVersions` ranking touched versions too (deletes the deploy just made); treating any 200 as a release (login pages); caching only successes (a blackholed network would wait 10 s per version per attempt).
+
+## D-108 Maven Wrapper on native Windows: the home lookup accepts PowerShell 5.1 and 7 (R41, F1)
+- **Decision:** No newer official Maven Wrapper fixes this: 3.3.4 is the latest release on Maven Central (checked 2026-10-25), and regenerating with it would keep the same expression. `mvnw.cmd` is therefore patched by hand. Only the expression that picks the Maven home root changes: `(Get-Item $MAVEN_M2_PATH).Target` is read once; when it is empty or `$null` the plain `.m2` path is used, otherwise the first element of `@($target)` is the link target. The rest of the generated 3.3.4 script is unchanged, and Maven stays 3.10.0 and wrapper 3.3.4.
+- **Reason:** review 2026-10-25-3044006 F1. Under PowerShell 7.6.8 the `Target` of a plain directory is `$null`, and `$null[0]` aborts the wrapper with "Cannot index into a null array" (reproduced by running the wrapper's PowerShell part under pwsh 7.6.8). Under Windows PowerShell 5.1 the property is an empty collection, so the old code worked there only because of that. A junction `MAVEN_USER_HOME` still resolves to its target under both.
+- **Proof:** `cmd //c mvnw.cmd -v` and `mvnw.cmd -B verify` from Windows PowerShell 5.1 pass; the wrapper's PowerShell part fails under pwsh 7.6.8 before the patch and passes after it, for a plain directory and for a junction; `mvnw.cmd -v` from pwsh 7.6.8 passes after the patch.
+- **Rejected:** regenerating with 3.3.4 (same bug); replacing the wrapper with a different one; a `try/catch` around the lookup (hides a real link target); changing `MAVEN_USER_HOME` handling.
+- **Note:** `./mvnw wrapper:wrapper` or a wrapper upgrade overwrites this patch; re-apply it or check `mvnw.cmd` after any regeneration.
+- **Reason for the batch:** review 2026-10-25-3044006 (FIX FIRST), R41 (BR14).
