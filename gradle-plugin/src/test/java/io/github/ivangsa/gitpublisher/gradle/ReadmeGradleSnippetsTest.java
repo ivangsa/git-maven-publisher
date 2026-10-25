@@ -33,7 +33,7 @@ class ReadmeGradleSnippetsTest {
     private static final Path README = Path.of("..", "README.md");
     private static final Path SETUP = Path.of("src/test/resources/readme/build.gradle");
     private static final Path SETTINGS = Path.of("src/test/resources/readme/settings.gradle");
-    private static final String SNAPSHOTS_SITE = "https://raw.githubusercontent.com/zenwave360/maven-snapshots/gh-pages/";
+    private static final String SNAPSHOTS_SITE = "https://www.zenwave360.io/maven-snapshots/";
     private static final String REPOSITORY_PLACEHOLDER = "https://github.com/<owner>/<snapshots-repo>.git";
     private static final String BRANCH = "snapshots";
 

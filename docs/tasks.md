@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · BR17 failed review verification (R43/R46), fixed by BR18 (D-113) · next: R47 (fix batch), develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111); re-review 2026-10-25-a3707d0 FIX FIRST: R43-R45 done (BR17, BR18); re-review 2026-10-25-4de4033 FIX FIRST: R47 open before B20
+**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · BR17 failed review verification (R43/R46), fixed by BR18 (D-113) · next: develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111); re-review 2026-10-25-a3707d0 FIX FIRST: R43-R45 done (BR17, BR18); re-review 2026-10-25-4de4033 FIX FIRST: R47 fixed by BR19 (D-114); snapshots now on zenwave360/maven-snapshots `main` via GitHub Pages (D-115); BR19 re-review pending before B20
 
 ## Batches
 
@@ -59,6 +59,7 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | BR16 | T45 (redefined: Gradle plugin to Maven Central), R35 (docs), T51 dropped (D-111) | implementer | gradle-plugin, testing | yes (re-review of BR15, BL1, BR16) | done |
 | BR17 | R43, R44, R45 (release check asks plain path segments only, Pages URL statement corrected, Central upload shows the error body and masks the bearer; D-112) | implementer | core, docs, workflows | yes (re-review of BR17) | done (R43 and R46 fixed by BR18) |
 | BR18 | R46 (restores R43; per-segment percent-encoding in the release check; D-113) | implementer | core, docs | yes (re-review of BR17, BR18) | done |
+| BR19 | R47 (`;` quoted in release check segments, D-114); snapshots served from zenwave360/maven-snapshots `main` through GitHub Pages (D-115) | implementer | core, docs, workflow, README | yes (re-review of BR19) | done |
 | B20 | T49 | implementer | maven-plugin, gradle-plugin | | todo |
 | B21 | T50, T52 (T51 dropped, Q7) | mechanic | testing | yes (end of Phase 3) | todo |
 | manual | T33 | maintainer | - | | after T32b (self-publication part after the repo is public, D-074); not dispatched to an agent |
@@ -519,7 +520,7 @@ Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R46Releas
 From [review 2026-10-25-4de4033](reviews/2026-10-25-4de4033.md) (re-review of BR17 and BR18, verdict FIX FIRST).
 Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R47ReleaseCheckPathParameterReviewTest.java`.
 
-- [ ] R47 The release check quotes `;` so a servlet-container repository cannot drop it as a path parameter (minor, F1)
+- [x] R47 The release check quotes `;` so a servlet-container repository cannot drop it as a path parameter (minor, F1)
   The URI constructor leaves `;` literal; Tomcat/Jetty (Nexus, Artifactory) strip `;...` from a segment, so the group directory `acme;rc` asks
   `org/acme;rc/lib/1.0/lib-1.0.pom`, the server answers the POM of `org.acme:lib:1.0`, and the unreleased `1.0-SNAPSHOT` of `org.acme;rc` is deleted.
   Quote `;` as `%3B` in every segment, or answer "no" without a request for a segment containing it; correct D-113's "exactly one segment" claim.

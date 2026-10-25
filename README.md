@@ -121,13 +121,13 @@ Releases of the plugin are published to Maven Central only (the plugin jar and i
 ```groovy settings.gradle
 pluginManagement {
     repositories {
-        maven { url = uri('https://raw.githubusercontent.com/zenwave360/maven-snapshots/gh-pages/') }
+        maven { url = uri('https://www.zenwave360.io/maven-snapshots/') }
         gradlePluginPortal()
     }
 }
 ```
 
-The same branch is also served by GitHub Pages at `https://www.zenwave360.io/maven-snapshots/`; use that URL instead if you prefer it.
+The snapshots repository is branch `main` of `zenwave360/maven-snapshots`, served by GitHub Pages at that URL. A new build is visible about a minute after the push.
 
 ## Authentication
 

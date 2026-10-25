@@ -90,7 +90,8 @@ final class ReleaseCheck {
         }
         try {
             String raw = new URI(null, null, "/" + segment, null).getRawPath();
-            return raw.substring(1);
+            // The constructor leaves ';' literal (a legal sub-delim), but servlet containers drop ';...' as a path parameter (R47, D-114).
+            return raw.substring(1).replace(";", "%3B");
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e);
         }
