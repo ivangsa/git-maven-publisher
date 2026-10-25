@@ -138,7 +138,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T19 Change recorder
   Diff `repo/` against `expectedSha` tree → added/modified paths.
   Done when: unit tests for add, modify, unchanged, nested paths, empty base.
-- [x] T20 Commit and push with lease (single attempt)
+- [!] T20 Commit and push with lease (single attempt) ([review 2026-10-25-0701e5d](reviews/2026-10-25-0701e5d.md) F1, restore via R19)
   Parentless commit from `repo/`, message format, forced push with expected old id. Also moves `refs/publisher/tree` in the same push, without a lease on it (D-020, D-027).
   Done when: after N publishes the branch has exactly 1 commit; stale lease returns a lease-failure result; the second and later pushes send only the new objects. The branch exists without `refs/publisher/tree` (created by hand): the publish succeeds in one attempt and creates the tree ref. A rejected tree ref never fails or retries a publish (D-027).
 - [x] T21 Retry loop with independent replay (restored via R15)
@@ -157,7 +157,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T25 Maven plugin skeleton
   `deploy` mojo, all parameters from design §2, release guard, `skip`.
   Done when: plugin descriptor generated; unit tests for release guard and parameter defaults.
-- [x] T26 Reactor collector and trigger
+- [!] T26 Reactor collector and trigger ([review 2026-10-25-0701e5d](reviews/2026-10-25-0701e5d.md) F4, restore via R22)
   Participants, check-in, configuration check and guarantee per design §2 (Maven) and D-034. Session-scoped collector, `-T` safe.
   Done when: invoker ITs: 3 modules (one `pom` packaging) produce exactly one commit, with `-T 4` too; a participant with `skip=true` still lets the others publish;
   a failing participant with `--fail-at-end` produces no push; `-pl` on one module publishes only it; mismatched `repository` between modules fails before checkout;
@@ -174,7 +174,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T30 Property-only configuration
   Publish with `-Dgit-publisher.*` and no `<configuration>`.
   Done when: invoker IT passes.
-- [x] T31 Maven user docs
+- [!] T31 Maven user docs ([review 2026-10-25-0701e5d](reviews/2026-10-25-0701e5d.md) F3, restore via R21)
   README: setup; the two authentication scenarios (self-publication with `GITHUB_TOKEN`; external users with a fine-grained PAT, expiry); serving the branch (raw.githubusercontent.com, Pages by hand with `nojekyll`, any static server);
   serialization precondition (all coordinates of a project, every workflow that can publish them, shared group-level plugin metadata) with an Actions `concurrency` snippet;
   reactor guarantee and the "separate publishing stage" recommendation; retention caveat and the accepted cache risk; GitHub hosting limits note.
@@ -314,3 +314,23 @@ Review tests live in `src/test/java/io/github/ivangsa/gitpublisher/review/` (R15
   Move `refs/publisher/tree` only after the branch update succeeded, or amend design §4/§7 and D-027 and reword "nothing was pushed".
   Also add the T21b tests from F5 (remote deletes a path we changed; same-snapshot conflict with pinned start times and exact paths).
   Done when: `R18FailedPublicationMovesNoRefTest` passes (or is updated with that decision).
+
+From [review 2026-10-25-0701e5d](reviews/2026-10-25-0701e5d.md) (end of Phase 1 code, verdict FIX FIRST). All before B14.
+Review tests live in `src/test/java/io/github/ivangsa/gitpublisher/review/` (core package, as R15-R18).
+
+- [ ] R19 A refused tree hint must not fail the publication (major, F1)
+  Since the atomic push (D-060), a remote that refuses `refs/publisher/tree` refuses the branch too and the publication fails as a
+  "permanent rejection". Keep "a failed publication moves no ref" without letting the hint fail the branch (for example a branch-only
+  retry with the lease when the atomic push was refused for a reason other than the lease), or amend design §4.6, D-027 and T20 with a decision.
+  Done when: `R19RejectedTreeHintTest` passes. Restore T20 after the full build passes.
+- [ ] R20 Decide the atomic fallback on JGit's condition, not on the URL (minor, F2)
+  Done when: both tests of `R20AtomicFallbackTest` pass.
+- [ ] R21 README snippets proven by ITs; settings and Maven 4 wording (minor, F3, F5)
+  Either the readme-workflow IT runs the `run:` command of `publish.yml` (repository and token source substituted), or a decision amends
+  T31's "Done when" for workflow YAML (validated by T50) and the README says so. No test-only comment or test ciphertext presented as an example
+  in the settings snippet; the `-Dsettings.security` sentence only claims what is shown.
+  Done when: `ReadmeSnippetsTest` and the ITs pass with the chosen rule written in decisions. Restore T31 after the full build passes.
+- [ ] R22 Repository mismatch IT; design §2 matches the participant and configuration rules (minor, F4)
+  Invoker IT with a module that sets a different `<repository>`: build fails before checkout, nothing pushed. Design §2 describes the full
+  settings comparison and the command-line rule of D-063.
+  Done when: the IT passes and design §2 is updated. Restore T26 after the full build passes.
