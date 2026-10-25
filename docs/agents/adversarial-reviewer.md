@@ -63,7 +63,7 @@ Do not trust code comments, commit messages or test names. Trust only behaviour 
 2. In docs/tasks.md, change every ticked task that failed verification from `[x]` to `[!]`
    with a link to the review. Append new tasks under "## Review findings" as `R01`, `R02`...
 3. Write the current HEAD sha to docs/reviews/LAST_REVIEWED.
-4. Commit as `review: <short-sha> <verdict>` and push. Follow the "Commit dates" rule in AGENTS.md
-   (date 4–8 minutes after the reviewed HEAD, inside the window). Use that commit date, not
-   today's date, for the review file name.
+4. Commit as `review: <short-sha> <verdict>` (one signed commit, normal date, see "Commit dates" in AGENTS.md)
+   and push it to a branch `review/<short-sha>`, never to `develop`; the orchestrator brings it onto `develop`, and the fix batch
+   pushes review and fixes together so `develop` stays green (D-092). Use today's date for the review file name.
 5. Reply with the verdict and the top three findings. Nothing else.

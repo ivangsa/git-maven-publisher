@@ -27,8 +27,9 @@ Nothing is pushed before that build passes (D-092). Reports state the exact buil
 - Work one task at a time, in order, from docs/tasks.md.
 - Write or update tests first. While working on a task, run the focused tests of the module you change
   (e.g. `./mvnw -pl core -am test -Dtest=...`, `./gradlew -p gradle-plugin test --tests ...`).
-- One commit per task. In the same commit as the code: tick the task and update the status line.
-- Commit message: `T07: <task title>`. Run the full build once at the end of the batch, then push once (D-092).
+- One commit per batch (D-105). In the same commit as the code: tick the batch's tasks, set the batch row to done and update the status line.
+  Commit message: `B19: T47, T48 <short summary>` (fix batches: `BR13: R36, R37 <short summary>`). Review commits stay separate.
+- Run the full build once at the end of the batch, then commit and push once (D-092).
   Run it earlier only when a task changes shared build infrastructure (POMs, Gradle build, CI, fixtures) and later tasks depend on it.
 - Branches (D-083, T61): commit and push to `develop`, never to `main`. `main` changes only through pull requests (release PRs, or a
   `develop` → `main` PR the maintainer merges). Start every session with `git switch develop && git pull --ff-only`.
@@ -66,7 +67,8 @@ Agents: `implementer`, `mechanic`, `adversarial-reviewer`. Instructions live in 
      if CI fails, the report says PARTIAL or BLOCKED, or the batch touched something CI does not run.
   2. Check `git log --oneline` and the ticks in docs/tasks.md against the report.
   3. Read diffs only if the build or CI fails or the report says PARTIAL or BLOCKED.
-  4. Update the batch status and the status line in docs/tasks.md.
+  4. If the batch status or status line in docs/tasks.md needs a correction, carry it in the next commit that goes out
+     (the next batch's or review's); do not make bookkeeping-only commits (D-105).
 - Escalation:
   - mechanic marks a task needs-implementer: move it to the next implementer batch.
   - implementer fails a batch: dispatch it once more with the failure in the prompt.
@@ -77,23 +79,18 @@ Agents: `implementer`, `mechanic`, `adversarial-reviewer`. Instructions live in 
   Review findings become new batches before the next phase starts.
 - Batches are strictly sequential. Exactly one subagent (implementer, mechanic or reviewer) runs at a time.
   Subagents run in the background: after dispatching, wait for its completion notification and finish the
-  "After each batch" checks before dispatching anything else. Never run batches in parallel (commit dates are
-  computed from the previous commit, and later batches depend on earlier ones).
+  "After each batch" checks before dispatching anything else. Never run batches in parallel (later batches depend on earlier ones).
 - Stop when the requested phase is done, when every remaining batch is blocked,
   or when docs/questions.md has a question that blocks the next batch.
   Then report: batches done, build status, open questions, review verdicts.
 
 ## Commit dates
 
-Every commit sets `GIT_AUTHOR_DATE` and `GIT_COMMITTER_DATE` inside the implementation window:
-2026-10-24 and 2026-10-25, 09:00–12:30 or 20:00–23:00, timezone +0200.
-Each commit is 4–8 minutes after the previous one (`git log -1 --format=%aI`). When a window is full,
-continue at the start of the next window (24 morning → 24 evening → 25 morning → 25 evening).
-Prefer fitting everything into the 24 October morning.
+Normal commit dates (D-105): do not set `GIT_AUTHOR_DATE` or `GIT_COMMITTER_DATE`. The fixed implementation window
+(2026-10-24/25) applied to Phases 0–2 only.
 
-```bash
-d="2026-10-24T09:05:00+02:00"; GIT_AUTHOR_DATE="$d" GIT_COMMITTER_DATE="$d" git commit -m "T01: Build skeleton"
-```
+Every commit is GPG-signed. Wrap it in `timeout 60 git commit ...`; if signing hangs or fails, stop and report BLOCKED.
+Never use `--no-gpg-sign` and never kill gpg-agent processes.
 
 ## Build
 

@@ -13,11 +13,11 @@ Rules:
 - Read AGENTS.md (the working agreement; CLAUDE.md imports it), the context pack, and the files you edit.
   Use AGENTS.md's document precedence when documents disagree, and report the conflict in Notes.
   Nothing else unless a task needs it. Do not read docs/brief.md unless the context pack lists it.
-- Follow the working agreement in AGENTS.md: tests first, one commit per task,
-  tick the task in docs/tasks.md in the same commit, commit dates inside the window.
-- Run focused tests of the changed module before each commit. At the end of the batch run the full build once,
-  then push once (D-092). The batch is done only under AGENTS.md's done rule (full build, no failing or skipped tests).
-  If the final build fails, fix it in a new commit (or amend an unpushed one); never push a red batch.
+- Follow the working agreement in AGENTS.md: tests first, one signed commit per batch (D-105) with the ticks,
+  the batch row and the status line in the same commit; normal commit dates.
+- Run focused tests of the changed module while working on each task. At the end of the batch run the full build once,
+  then commit and push once (D-092). The batch is done only under AGENTS.md's done rule (full build, no failing or skipped tests).
+  Never push a red batch.
 - Touch only tasks in your batch. Do not refactor outside them.
 - Never edit or delete tests under any review/ folder. Make them pass with correct code.
 - If a task needs a decision: write it in docs/questions.md, mark the task [?], continue.

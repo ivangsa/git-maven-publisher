@@ -900,3 +900,15 @@ Newest last. Format: date · decision · reason · alternatives rejected.
 - **Reason:** review 2026-10-25-66f46ec, F1: D-103's count is a proxy for "the record is last"; a later `whenReady` that removes one action and adds a failing one, or wraps the record via `setActions`, kept the count and pushed after a failed participant.
 - **Evidence:** `R33CountPreservingLateActionReviewTest` (remove-and-add: default, `--continue`, `--configuration-cache`; wrap-last: default, `--continue`), `RecordRunsLastAndUnwrappedTest` (an earlier action that calls the record and then fails; a wrapper that copies the record's display name and fails after delegating; default and `--continue`), `R32LateWhenReadyActionReviewTest`, `R26LateParticipantFailureReviewTest`, `LateActionFailsClosedTest`, `LifecycleTest` and `ConfigurationCacheLifecycleTest` (pushes still happen with `--parallel`, `--continue`, a selected subproject, configuration cache store and reuse).
 - **Rejected:** comparing the last element's `hashCode`/`equals` with the record (depends on Gradle's internal wrapper `equals`; the display name gives the same identity with less coupling); executing the last action again as a probe (runs user code twice); storing a reference to Gradle's wrapper in the record (a cycle the configuration cache does not promise to preserve); stack checks that name Gradle's internal executor classes (break between Gradle versions; the prefix check only needs Gradle's own frames to be Gradle's).
+
+## D-105 History squashed; one commit per batch; normal commit dates
+- **Date:** 2026-10-25 (applied after Phase 2)
+- **Decision:** the maintainer had the Phase 0–2 history (130 commits) squashed into 22 signed commits: one per stretch of work between two reviews,
+  with every review commit kept as it was; `main` and `develop` were force-pushed with lease (ruleset 25787740 off for the push, on again).
+  Commit SHAs quoted in review files, `LAST_REVIEWED`, tasks.md and older decisions refer to the pre-squash history and are kept as historical text.
+  From now on:
+  - one signed commit per batch, carrying the ticks, the batch row and the status line (`B19: T47, T48 <summary>`); review commits stay separate;
+  - no bookkeeping-only commits from the orchestrator: corrections ride along with the next commit that goes out;
+  - normal commit dates; the fixed 2026-10-24/25 window applied to Phases 0–2 only;
+  - the reviewer pushes a `review/<sha>` branch; the orchestrator brings it onto `develop` and the fix batch pushes review and fixes together.
+- **Reason:** the maintainer found the commit and build volume excessive; D-092 already cut the builds per batch.
