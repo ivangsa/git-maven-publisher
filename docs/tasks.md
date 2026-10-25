@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · next: re-review of BR15, BL1, BR16, develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111)
+**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · next: re-review of BR15, BL1, BR16, develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111); re-review 2026-10-25-a3707d0 FIX FIRST: R43-R45 open before B20
 
 ## Batches
 
@@ -486,3 +486,21 @@ Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R42Releas
   drops every untouched `-SNAPSHOT` version. Reject such URLs in `RetentionPolicy` (message without the value) or resolve the POM path against
   the URL's path; record the choice in decisions.
   Done when: `R42ReleaseRepositoryQueryReviewTest` passes and the full build passes.
+
+From [review 2026-10-25-a3707d0](reviews/2026-10-25-a3707d0.md) (re-review of BR15, BL1 and BR16, verdict FIX FIRST).
+Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R43ReleaseCheckPathSegmentReviewTest.java`.
+
+- [ ] R43 The release check asks exactly the POM path, whatever the directory names (minor, F1)
+  `ReleaseCheck.exists` appends artifactId and base version (directory names of the tree) to the URL string unencoded; a `?` in a name sends the request to
+  another resource (`HEAD /maven2/org/acme/lib/1.0` for `1.0?rc-SNAPSHOT`), and a non-HTML 200 there deletes the version. Percent-encode each path segment, or
+  answer "no" without a request for a segment with URI-reserved characters; record the choice in decisions.
+  Done when: `R43ReleaseCheckPathSegmentReviewTest` passes and the full build passes.
+- [ ] R44 Correct the GitHub Pages statement of D-111 and the snapshots workflow comment (minor, F2)
+  Pages serves the branch at `https://www.zenwave360.io/maven-snapshots/` (`zenwave360.github.io` redirects there); `www.zenwave.io` was a wrong URL, not a Pages fault.
+  Fix the D-111 correction note and the comment in `publish-maven-snapshots.yml`. If the maintainer wants the Pages URL in the README snippet, change
+  `gradle-plugin/src/test/resources/readme/settings.gradle` and `SNAPSHOTS_SITE` in `ReadmeGradleSnippetsTest` with it.
+  Done when: decisions and the workflow comment are correct, `actionlint` passes and the full build passes.
+- [ ] R45 Show Central's answer when the Gradle plugin upload fails, and mask the derived bearer (minor, F3)
+  `release-from-notes.yml` upload step: on a curl failure print `deployment-id.txt` (the response body) to stderr before exiting non-zero; add
+  `::add-mask::` for the base64 bearer before the curl call.
+  Done when: `actionlint` passes and the step prints the body on a non-2xx answer (shown with a local run of the step's script against a stub server).
