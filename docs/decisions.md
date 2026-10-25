@@ -682,7 +682,8 @@ Newest last. Format: date · decision · reason · alternatives rejected.
 - **Not done here (later tasks):** `enforce-snapshot-version` enforcer execution (the snapshot reusable invokes it only when `publish-snapshots: true`, so it belongs to T33); the `badges` branch, `develop` branch and environment rules (T59b). Until T59b the `develop` push trigger and `badges` job have no branch to act on.
 - **Evidence (BP4):** `./mvnw -B -ntp verify` BUILD SUCCESS (surefire 62 + 107 + 46, failsafe 4, invoker 13 passed, none failed or skipped; `core/target/site/jacoco/jacoco.csv` and `maven-plugin/target/site/jacoco/jacoco.csv` written). `actionlint` 1.7.12 clean on `.github/workflows/*.yml`. `./mvnw -B release:prepare -DdryRun=true -DreleaseVersion=0.1.0` BUILD SUCCESS in a scratch clone (the preparation build ran `clean verify -Dinvoker.skip=true`, the invoker ITs were skipped). Bundle check: a copy at 0.1.0 with a throwaway RSA-2048 key in a short GnuPG home outside the repository, `SIGN_KEY`/`SIGN_KEY_PASS` in env, `./mvnw -B deploy -Dcentral.skipUpload=true` with no profile flags: BUILD SUCCESS, the release profile activated, invoker ITs skipped, and `scripts/verify-central-bundle.py` printed PASS for 9 artifacts (no `test-fixtures` entry). The throwaway home and key were removed. Later, HEAD moved to `879f260` (review commit with R23, R24, R25 review tests of BR8). The full build of the T59 tree then fails in `core`: `R23RetentionFilenameBoundaryTest` (2 tests) and `R24IntegrityOracleParsingTest` (1 test). A clean clone of `879f260` without the BP4 changes fails the same two tests, so the failure is not caused by T59. T59 is not ticked until the first green full build (done rule, AGENTS.md).
 
-## D-083 Self-publication to `zenwave360/maven-snapshots`; Maven and Gradle in one release (revises D-073, D-074, D-078)
+## D-083 Self-publication to `zenwave360/maven-snapshots`; Maven and Gradle in one release (revises D-073, D-074, D-078; branch and URL revised by D-115)
+- **Revised by D-115:** the branch is `main`, not `gh-pages`, and the consumer URL is the Pages URL. "Never `main`" below is history.
 - **Date:** 2026-10-25
 - **Decision:** The repository is public (maintainer's go, 2026-10-25). Environment `maven-central-upload` now has the maintainer as required reviewer and deploys only from `main`.
   - **Reuse:** `zenwave360/release-workflows` is public, and its `environment:` and `secrets:` resolve in the calling repository. So this repository, outside the ZenWave360 organization, needs no organization trust: it calls the workflows pinned by SHA and keeps its own secrets in its own environments.
@@ -869,6 +870,7 @@ Newest last. Format: date · decision · reason · alternatives rejected.
 - **Evidence:** `ReadmeSnippetsTest` (every README snippet is copied from an IT file) and `ReadmeGradleSnippetsTest` pass (see the batch report).
 
 ## D-102 Self-publication consumer checks the build just pushed (R31, under D-083, D-084)
+- **Revised by D-115 (branch and URL):** the read-back clones `main`, and the consumer waits on the Pages URL, not `gh-pages` and raw.githubusercontent.com. The build-number logic below stands.
 - **Date:** 2026-10-25
 - **Decision:**
   - The `publish` job reads back the build numbers that its push left on the branch: after the deploy step, a shallow anonymous clone of `gh-pages` of `zenwave360/maven-snapshots` (no token; the repository is public) and the `<buildNumber>` of `maven-metadata.xml` of `git-maven-publisher-core` and `git-maven-publisher-maven-plugin` for `<version>-SNAPSHOT`. It exposes them as job outputs `core-build` and `plugin-build`. The step fails when a build number is missing.
@@ -959,6 +961,7 @@ Newest last. Format: date · decision · reason · alternatives rejected.
 - **Reason:** maintainer decision, 2026-10-25 (batch BL1). It revises the license part of the brief, the header decisions (the license check of D-016 and the header template location of D-076) and the AGENTS.md stack line; no behaviour changed.
 
 ## D-111 Gradle plugin to Maven Central, snapshot dogfood, composite builds, no nightly (T45, R35, T51; answers Q7, Q12, Q13; supersedes D-095, D-100)
+- **Revised by D-115 (branch and URL):** the snapshots go to `main` and are consumed through https://www.zenwave.io/maven-snapshots/; the `gh-pages` and raw.githubusercontent.com parts below are history.
 - **Date:** 2026-10-25 (batch BR16, maintainer decisions)
 - **Decision, release:**
   - No Gradle Plugin Portal account. `com.gradle.plugin-publish` is removed (D-095 is history). `gradle-plugin/build.gradle` applies `maven-publish` and `signing`. The publications are the ones `java-gradle-plugin` creates: `pluginMaven` (jar, `.module`, POM) and the marker `io.github.ivangsa.git-maven-publisher:io.github.ivangsa.git-maven-publisher.gradle.plugin` (POM only, depends on the jar). Every POM has name, description, url, MIT license (D-110), developer and scm; the jar has sources and javadoc jars (`withSourcesJar()`, `withJavadocJar()`, doclint off for javadoc).
@@ -991,6 +994,8 @@ Newest last. Format: date · decision · reason · alternatives rejected.
 
 ## D-114 The release check also quotes `;` (R47; corrects D-113)
 
+- **Corrected by D-116:** `+` also has a path meaning (S3 and CloudFront read it as a space), so it is quoted as `%2B` too.
+
 - **Problem:** D-113 claimed per-segment encoding maps any name to exactly one segment. The `java.net.URI` constructor leaves `;` literal (legal sub-delim), and servlet containers (Tomcat, Jetty: Nexus, Artifactory) drop `;...` up to the next `/` as a path parameter, so `org/acme;rc/lib/...` is answered with the POM of `org.acme:lib` (review 2026-10-25-4de4033, F1).
 - **Choice:** after the URI constructor, `;` is replaced by `%3B` in every segment. Servers strip path parameters before decoding, so `%3B` is part of the segment name. Other sub-delims stay literal: `, = : @ ! $ & ' ( ) * +` have no path-segment meaning in common servers (Tomcat/Jetty/nginx/Apache/Pages/CDNs treat only `;` specially in paths; `,` and `=` are matrix-style only in JAX-RS parameter binding, after mapping, not in resource lookup). `1.0@rc` etc. still map to themselves, as D-113 requires. D-113's "exactly one segment" claim holds with this rule.
 - **Review tests:** `R47ReleaseCheckPathParameterReviewTest`, R43 and R46 pass unchanged.
@@ -999,3 +1004,9 @@ Newest last. Format: date · decision · reason · alternatives rejected.
 
 - **Context:** the snapshots repository now serves from branch `main` (gh-pages content moved; the ruleset only blocks deletion). GitHub Pages serves it at https://www.zenwave360.io/maven-snapshots/; zenwave360.github.io/maven-snapshots/ redirects there. The maintainer wants the Pages URL, not raw.githubusercontent.com.
 - **Choice:** the self-publication workflow publishes to `main` (Maven goal, Gradle init script default `SELF_PUBLISH_BRANCH`, read-back clone); the consumer jobs and the README/`readme/settings.gradle` snippet use the Pages URL. The consumer waits up to 15 x 30 s (Maven) and 20 x 30 s (Gradle) for the served build number to reach the pushed one, because Pages deploys about a minute after the push. The concurrency group is unchanged. The plugin's own default branch (`gh-pages`) and tests that use `gh-pages` as a generic branch name are unchanged. This supersedes the raw.githubusercontent.com URL of D-102/D-111 for this project's setup only.
+
+## D-116 The release check quotes `+`; the self-publication writes `.nojekyll`; D-115 revises D-083 (R48, R49, R50; corrects D-114)
+
+- **R48:** D-114 said only `;` has a path meaning on common servers. Amazon S3 (REST and website endpoints, CloudFront in front) decodes a literal `+` in the path as a space; only `%2B` names a key containing `+`. `ReleaseCheck.encode` now also replaces `+` by `%2B` in every segment (`1.0+build` -> `1.0%2Bbuild`). Servers that do not special-case `+` decode `%2B` to `+`, so the name is the same everywhere. `, = : @ ! $ & ' ( ) *` stay literal. Review tests R43, R46, R47, R48 pass unchanged.
+- **R49:** GitHub Pages serves `main` of zenwave360/maven-snapshots, so Jekyll would process it. Both publish commands of this project set nojekyll (`-Dgit-publisher.nojekyll=true` in the Maven deploy step, `nojekyll = true` in `self-publish.init.gradle`). Either alone would do, because a publication keeps existing files and the file persists on the branch; both are set so the file survives if one half is removed. Other ZenWave projects publishing to the same branch through release-workflows do not need it once the file exists.
+- **R50:** D-083, D-102 and D-111 are marked "Revised by D-115" for the branch (`main`) and URL (Pages). The rule "never `main`" of D-083 no longer holds; the maintainer accepted that the first publication replaces the branch's history (D-115). The workflow header comment and the T60 text in docs/tasks.md say `main` and the Pages URL.

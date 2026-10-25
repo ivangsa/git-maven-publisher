@@ -33,5 +33,6 @@ allprojects {
     extensions.configure('gitMavenPublisher') {
         it.repository = System.getenv('SELF_PUBLISH_REPOSITORY') ?: 'https://github.com/zenwave360/maven-snapshots.git'
         it.branch = System.getenv('SELF_PUBLISH_BRANCH') ?: 'main'
+        it.nojekyll = true
     }
 }

@@ -90,8 +90,9 @@ final class ReleaseCheck {
         }
         try {
             String raw = new URI(null, null, "/" + segment, null).getRawPath();
-            // The constructor leaves ';' literal (a legal sub-delim), but servlet containers drop ';...' as a path parameter (R47, D-114).
-            return raw.substring(1).replace(";", "%3B");
+            // The constructor leaves ';' and '+' literal (legal sub-delims), but servlet containers drop ';...' as a path parameter (R47, D-114)
+            // and S3/CloudFront read a literal '+' as a space (R48, D-116).
+            return raw.substring(1).replace(";", "%3B").replace("+", "%2B");
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e);
         }

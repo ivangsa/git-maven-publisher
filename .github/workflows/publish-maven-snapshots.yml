@@ -5,7 +5,7 @@ name: Build and Publish Snapshots
 #   publish  environment git-publisher-snapshots (deploys from develop only): `./mvnw install`, then the installed plugin's
 #            deploy goal by full coordinates, publishing this project's snapshots to zenwave360/maven-snapshots, branch main (D-115).
 #            Then the Gradle plugin and its marker, published by the Gradle plugin itself, built from the same commit (T45, D-111).
-#            Never main. The token reaches Maven and Gradle only as the env GIT_PUBLISHER_TOKEN of the publish steps.
+#            Branch main is served by GitHub Pages, so each publication keeps .nojekyll (R49, D-116). The token reaches Maven and Gradle only as the env GIT_PUBLISHER_TOKEN of the publish steps.
 #   consumer a clean consumer (empty local repository) resolves the published plugin and core from GitHub Pages (https://www.zenwave360.io/maven-snapshots/),
 #            after it has checked that the branch serves the build that publish read back from the branch (R31, D-102).
 #            A second clean consumer (empty Gradle user home) applies the Gradle plugin by its id from pluginManagement.
@@ -89,6 +89,7 @@ jobs:
           io.github.ivangsa:git-maven-publisher-maven-plugin:${PLUGIN_VERSION}:deploy
           -Dgit-publisher.repository=https://github.com/zenwave360/maven-snapshots.git
           -Dgit-publisher.branch=main
+          -Dgit-publisher.nojekyll=true
 
       # The Gradle plugin is published by the Gradle plugin: the first command installs the plugin built from this commit into the
       # local Maven repository (no token), the second applies that installed plugin to the same build through an init script
