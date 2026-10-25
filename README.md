@@ -67,9 +67,48 @@ A multi-module build makes one commit: every module that binds the goal checks i
 - Success of modules built after the last participant, and of the rest of the CI pipeline, is not guaranteed. A failing module after that point leaves the publication pushed and the build failed.
 - If you need "publish only when everything passed", run the publication as a separate CI stage after validation, as the workflow below does with the `publish` job.
 
+## Publish from Gradle
+
+The Gradle plugin `io.github.ivangsa.git-maven-publisher` is a thin wrapper over `maven-publish`: it applies `maven-publish` itself and never generates artifacts or metadata. Its settings are the `gitMavenPublisher { }` block; the parameters are the same as for Maven.
+
+### Setup
+
+```groovy
+plugins {
+    id 'java-library'
+    id 'io.github.ivangsa.git-maven-publisher' version '0.1.0'
+}
+
+group = 'com.acme'
+version = '1.0-SNAPSHOT'
+
+gitMavenPublisher {
+    repository = 'https://github.com/<owner>/<snapshots-repo>.git'
+    branch = 'snapshots'
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+        }
+    }
+}
+```
+
+Run the publication:
+
+```sh
+./gradlew publishAllPublicationsToGitPublisherRepository
+```
+
+The task publishes what the build publishes to the repository `gitPublisher`, as one commit, to `branch`. In a multi-project build, run it at the root to publish every subproject in one commit: if any publication fails, nothing is pushed. Run it in one subproject to publish only that subproject. The plugin works with the configuration cache.
+
+Set the token as described in [Authentication](#authentication). Do not write it into the build script: a value set there is stored with the build configuration.
+
 ## Authentication
 
-Tokens reach the plugin in one of three ways, in this order: the `settings.xml` server named by `serverId`, the environment variable `GIT_PUBLISHER_TOKEN`, or anonymous (only for `file` repositories). A token never goes on the command line, into the POM, into the remote URL, the Git config or a log line.
+Tokens reach the plugin in one of three ways, in this order: the `settings.xml` server named by `serverId` (Maven), the environment variable `GIT_PUBLISHER_TOKEN`, or anonymous (only for `file` repositories). Gradle reads the environment variable, then the Gradle property `gitPublisherToken` (for example in `~/.gradle/gradle.properties`, never in the project). A token never goes on the command line, into the POM or build script, into the remote URL, the Git config or a log line.
 
 ### Self-publication with GITHUB_TOKEN
 
@@ -87,7 +126,7 @@ permissions:
 
 # Serialize every publication of the coordinates of this project, and of every other workflow that publishes them (design section 7).
 concurrency:
-  group: maven-snapshots-${{ github.repository }}
+  group: maven-snapshots-io.github.ivangsa
   cancel-in-progress: false
 
 jobs:
@@ -153,7 +192,7 @@ The plugin does not configure Pages.
 
 Publications that touch the same paths must not run at the same time. The plugin does not serialize them; the CI pipeline must:
 
-- Serialize every coordinate that a project produces: all Maven modules of a reactor, and all Gradle publications when that plugin arrives.
+- Serialize every coordinate that a project produces: all Maven modules of a reactor, and all publications of a Gradle build.
 - Cover every workflow that can publish those coordinates, in every repository. A `concurrency` group in one repository does not protect a snapshots repository that another repository also publishes to.
 - Treat shared group-level plugin metadata (the `maven-metadata.xml` of a Maven plugin groupId) as a shared path.
 

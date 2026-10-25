@@ -19,15 +19,17 @@ and report the conflict (batch report or review finding). Do not resolve it sile
 
 ## Done rule
 
-A task or batch is done only when the full build passes with no failing and no skipped tests, every review test included.
-Reports state the exact build command that was run and its result.
+A batch is done only when the full build passes on its final state with no failing and no skipped tests, every review test included.
+Nothing is pushed before that build passes (D-092). Reports state the exact build command that was run and its result.
 
 ## Working agreement
 
 - Work one task at a time, in order, from docs/tasks.md.
-- Write or update tests first. A task is done only when the full build passes.
-- In the same commit as the code: tick the task and update the status line.
-- Commit message: `T07: <task title>`. Push after every task.
+- Write or update tests first. While working on a task, run the focused tests of the module you change
+  (e.g. `./mvnw -pl core -am test -Dtest=...`, `./gradlew -p gradle-plugin test --tests ...`).
+- One commit per task. In the same commit as the code: tick the task and update the status line.
+- Commit message: `T07: <task title>`. Run the full build once at the end of the batch, then push once (D-092).
+  Run it earlier only when a task changes shared build infrastructure (POMs, Gradle build, CI, fixtures) and later tasks depend on it.
 - Branches (D-083, T61): commit and push to `develop`, never to `main`. `main` changes only through pull requests (release PRs, or a
   `develop` → `main` PR the maintainer merges). Start every session with `git switch develop && git pull --ff-only`.
 - Never tick a task with failing or skipped tests. Never weaken a test to make it pass.
@@ -60,9 +62,10 @@ Agents: `implementer`, `mechanic`, `adversarial-reviewer`. Instructions live in 
    Follow your agent instructions."
   Pass only file paths, never paste file contents into the prompt.
 - After each batch:
-  1. Run the full build yourself.
+  1. Check that CI on the batch's last pushed commit is green in every job (D-092). Run the full build yourself only
+     if CI fails, the report says PARTIAL or BLOCKED, or the batch touched something CI does not run.
   2. Check `git log --oneline` and the ticks in docs/tasks.md against the report.
-  3. Read diffs only if the build fails or the report says PARTIAL or BLOCKED.
+  3. Read diffs only if the build or CI fails or the report says PARTIAL or BLOCKED.
   4. Update the batch status and the status line in docs/tasks.md.
 - Escalation:
   - mechanic marks a task needs-implementer: move it to the next implementer batch.

@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 fixed and re-reviewed (no findings); repo public; T61 branch model on (agents push to `develop`) · Next: BP5 (T60 self-publication), then Phase 2 (B15) on `develop`
+**Status:** Phase 1 fixed and re-reviewed (no findings); repo public; T61 branch model on (agents push to `develop`) · BP5 (T60 self-publication) done, first publication run on `develop` reported in the batch report · Phase 2: B15 done (T34-T37), B16 done (T38-T40), B17 done (T41, T42), B18 partial (T44 done, T45 [?] Q12), B18b done (T43) on `develop`
 
 ## Batches
 
@@ -38,14 +38,15 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | B14 | T32a | mechanic | maven-plugin | | done |
 | BR8 | [!] T16 via R23, [!] T17 via R24, [!] T26 via R25 | implementer | core, maven-plugin, testing | | done |
 | BP4 | T59 (release flow like release-workflows, D-078) | mechanic | maven-plugin, testing | | done |
-| BP5 | T60 (self-publication, D-083) | mechanic | maven-plugin, testing | | todo |
+| BP5 | T60 (self-publication, D-083, D-084) | mechanic | maven-plugin, testing | | done |
 | main | T61 (branch model switch, D-083) | orchestrator + maintainer | - | | done |
 | manual | T59b | maintainer | - | | partly done (repo public, environments, develop, badges); ruleset in T61 |
 | manual | T32b | maintainer | - | | after T59b; not dispatched to an agent |
-| B15 | T34, T35, T36, T37 | implementer | gradle-plugin | | todo |
-| B16 | T38, T39, T40 | implementer | gradle-plugin, testing | | todo |
-| B17 | T41, T42 | implementer | gradle-plugin, testing | | todo |
-| B18 | T43, T44, T45 | mechanic | gradle-plugin | yes (end of Phase 2) | todo |
+| B15 | T34, T35, T36, T37 | implementer | gradle-plugin | | done |
+| B16 | T38, T39, T40 | implementer | gradle-plugin, testing | | done |
+| B17 | T41, T42 | implementer | gradle-plugin, testing | | done |
+| B18 | T43, T44, T45 | mechanic | gradle-plugin | | partial: T44 done; T43 needs-implementer (D-093), moved to B18b; T45 [?] (Q12) |
+| B18b | T43 (Gradle 8.x configuration-cache scan, D-093, D-096) | implementer | gradle-plugin, testing | yes (end of Phase 2) | done |
 | B19 | T47, T48 (retention) | implementer | core | yes (retention) | todo |
 | B20 | T49 | implementer | maven-plugin, gradle-plugin | | todo |
 | B21 | T50, T51, T52 | mechanic | testing | yes (end of Phase 3) | todo (T51 needs Q7) |
@@ -203,7 +204,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
   `publish-maven-snapshots.yml` caller (verify only). `test-fixtures` stays out of every bundle and of `release:prepare` deploys.
   No agent dispatches a workflow, uploads to Central or uses the maintainer's key (D-072).
   Done when: `actionlint` passes on every workflow; `./mvnw -B release:prepare -DdryRun=true -DreleaseVersion=0.1.0` passes; the T32a bundle check passes on a bundle signed by `sign-maven-plugin` with a throwaway key; `jacoco.csv` exists for both published jar modules after `./mvnw verify`; only `release-from-notes.yml` names `maven-central-upload`.
-- [ ] T60 Self-publication to `zenwave360/maven-snapshots` (D-083)
+- [x] T60 Self-publication to `zenwave360/maven-snapshots` (D-083)
   Workflow on push to `develop` (and `workflow_dispatch`): verify; then, in environment `git-publisher-snapshots`, `./mvnw install` and the installed plugin's `deploy` goal by full coordinates
   to `https://github.com/zenwave360/maven-snapshots.git`, branch `gh-pages`, token `GIT_PUBLISHER_TOKEN`, concurrency group `maven-snapshots-io.github.ivangsa`; then a clean consumer job
   (empty local repository) resolves `git-maven-publisher-maven-plugin` and `git-maven-publisher-core` at the pushed snapshot version from `https://raw.githubusercontent.com/zenwave360/maven-snapshots/gh-pages/`.
@@ -224,38 +225,38 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 
 ## Phase 2: Gradle + KMP
 
-- [ ] T34 Gradle build skeleton
+- [x] T34 Gradle build skeleton
   `gradle-plugin/` with wrapper, `java-gradle-plugin`, depends on `git-maven-publisher-core` from `mavenLocal()` after `./mvnw install` (D-075), CI step, version sync check.
   Done when: `./gradlew -p gradle-plugin build` passes locally and in CI.
-- [ ] T35 Extension and repository
+- [x] T35 Extension and repository
   `gitMavenPublisher` extension (design §2), registers `gitPublisher` Maven repository.
   Done when: TestKit test shows the repository and publish tasks for a `java-library` project.
-- [ ] T36 BuildService and lifecycle tasks
+- [x] T36 BuildService and lifecycle tasks
   `GitPublisherService`, `gitPublisherCheckout`, guarded `gitPublisherPush` per design §2 (Gradle) and D-033; no unconditional finalizer, no publishing in `close()`. Record the mechanism in decisions.
   Done when: TestKit: a multi-project build (3 projects) yields exactly one commit and a valid tree; a failing participant yields no push, also with `--continue`;
   with `--parallel` push never starts before every participant finished; publishing one selected subproject works.
-- [ ] T37 Configuration cache
+- [x] T37 Configuration cache
   Done when: TestKit runs the T36 scenarios twice with `--configuration-cache`, the second run reuses the cache, and every T36 guarantee holds in both runs.
-- [ ] T38 Gradle credentials
+- [x] T38 Gradle credentials
   `token` property, env var, `gitPublisherToken` Gradle property.
   Done when: TestKit against HTTP git server with each token source; a wrong token fails fast.
-- [ ] T39 KMP publish
+- [x] T39 KMP publish
   KMP sample (JVM, JS, one native target) publishes all publications.
   Done when: every expected artifactId has `.module`, POM, metadata; `MetadataAssertions` passes.
-- [ ] T40 Clean Gradle KMP consumer
+- [x] T40 Clean Gradle KMP consumer
   `GradleConsumer` harness (TestKit, empty caches) resolves from a `file://` checkout of the branch.
   Done when: consumer selects the correct variant for JVM, JS and native targets.
-- [ ] T41 Gradle differential IT
+- [x] T41 Gradle differential IT
   Expected: KMP publications run sequentially by Gradle `maven-publish` into a clean `file://` repo. Actual: the same publications through the plugin, with a concurrent publisher of other coordinates forcing a lease failure.
   Done when: `TreeDiff` reports no difference.
-- [ ] T42 Maven and Gradle in one repository
+- [x] T42 Maven and Gradle in one repository
   Done when: IT publishes a Maven project and a Gradle KMP project (distinct coordinates) concurrently into one bare repo; both consumers resolve.
-- [ ] T43 Gradle version matrix
+- [x] T43 Gradle version matrix
   CI matrix over the latest Gradle 8.x and the latest 9.x.
   Done when: all legs green.
-- [ ] T44 Gradle user docs
+- [x] T44 Gradle user docs
   Done when: README Gradle snippets are copied from passing TestKit builds.
-- [ ] T45 Plugin Portal publishing
+- [?] T45 Plugin Portal publishing (see Q12)
   Plugin marker and portal config.
   Done when: `publishPlugins --validate-only` passes.
 

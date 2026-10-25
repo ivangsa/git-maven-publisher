@@ -68,3 +68,41 @@ jobs:
         run: |
           mvn -B -version
           mvn -B verify
+
+  # Gradle plugin (D-002, D-075): a separate Gradle build that consumes core and the harness from the local Maven repository.
+  # The matrix runs the whole Gradle build (compile, TestKit tests, KMP sample) under the latest Gradle 8.x and the latest
+  # 9.x (D-093). The root wrapper is pinned to 9.5.0 for local builds; each leg rewrites the distribution URL in
+  # gradle/wrapper/gradle-wrapper.properties to its own version first (there is no Gradle build at the root, so the wrapper task
+  # cannot be used), and the rewrite is not committed.
+  gradle-plugin:
+    name: gradle-plugin (JDK ${{ matrix.java }}, Gradle ${{ matrix.gradle }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['17', '21']
+        gradle: ['8.14.6', '9.8.2']
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - name: Install core and the harness into the local Maven repository
+        run: ./mvnw -B -ntp install -DskipTests -Dinvoker.skip=true
+
+      - name: Select Gradle ${{ matrix.gradle }} for this leg (not committed)
+        env:
+          GRADLE_VERSION: ${{ matrix.gradle }}
+        run: >-
+          sed -i "s#gradle-[0-9.]*-bin\.zip#gradle-${GRADLE_VERSION}-bin.zip#"
+          gradle/wrapper/gradle-wrapper.properties
+
+      - name: Build and test the Gradle plugin (includes the version sync check)
+        run: ./gradlew -p gradle-plugin build

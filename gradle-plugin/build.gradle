@@ -1,0 +1,106 @@
+/*
+ * Copyright 2026 Ivan Garcia Sainz-Aja
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * see the LICENSE file in the project root.
+ */
+plugins {
+    id 'java-gradle-plugin'
+    // Plugin Portal publication and the plugin marker (T45, D-095). Used by the release caller job only.
+    id 'com.gradle.plugin-publish' version '2.2.1'
+}
+
+// The version is owned by the root pom.xml (D-083): release:prepare bumps both builds. The file is read through
+// providers so that a change invalidates the configuration cache.
+def rootPomFile = layout.projectDirectory.file('../pom.xml')
+def pomXml = new groovy.xml.XmlSlurper().parseText(providers.fileContents(rootPomFile).asText.get())
+def pomVersion = pomXml.version.text().trim()
+def jgitVersion = pomXml.properties.'jgit.version'.text().trim()
+def jettyVersion = pomXml.properties.'jetty.version'.text().trim()
+def mavenVersion = pomXml.properties.'maven.version'.text().trim()
+if (pomVersion.isEmpty()) {
+    throw new GradleException("No <version> found in ${rootPomFile.asFile}")
+}
+
+group = 'io.github.ivangsa'
+version = pomVersion
+
+repositories {
+    // core is installed by `./mvnw install` before this build runs (D-075).
+    mavenLocal {
+        content {
+            includeGroup 'io.github.ivangsa'
+        }
+    }
+    mavenCentral()
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+dependencies {
+    implementation "io.github.ivangsa:git-maven-publisher-core:${pomVersion}"
+
+    testImplementation platform('org.junit:junit-bom:5.14.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation "io.github.ivangsa:git-maven-publisher-test-fixtures:${pomVersion}"
+    // A real Git HTTPS server with token authentication for the credentials tests (same stack as the Maven plugin ITs).
+    testImplementation "org.eclipse.jgit:org.eclipse.jgit.http.server:${jgitVersion}"
+    testImplementation "org.eclipse.jetty:jetty-server:${jettyVersion}"
+    testImplementation "org.eclipse.jetty.ee10:jetty-ee10-servlet:${jettyVersion}"
+    // Maven Verifier (MixedRepositoryTest, MavenConsumer) needs Maven's settings classes; test-fixtures declares them test-scoped.
+    testImplementation "org.apache.maven:maven-settings-builder:${mavenVersion}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+gradlePlugin {
+    website = 'https://github.com/ivangsa/git-maven-publisher'
+    vcsUrl = 'https://github.com/ivangsa/git-maven-publisher'
+    plugins {
+        gitMavenPublisher {
+            id = 'io.github.ivangsa.git-maven-publisher'
+            implementationClass = 'io.github.ivangsa.gitpublisher.gradle.GitMavenPublisherPlugin'
+            displayName = 'git-maven-publisher'
+            description = 'Turns a Git repository into a Maven snapshot repository served as static files.'
+            tags.set(['maven', 'git', 'publishing', 'snapshots', 'static-site'])
+        }
+    }
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    // The Maven plugin under test is the one installed by ./mvnw install (D-075); MixedRepositoryTest runs it.
+    systemProperty 'gitMavenPublisher.version', pomVersion
+    // TestKit builds start their own daemons; keep output small, fail loudly.
+    testLogging {
+        events 'failed', 'skipped'
+        exceptionFormat 'full'
+    }
+}
+
+// Version sync check (T34): the version is read from ../pom.xml, so it must not be declared anywhere else in this build,
+// and the core dependency must be the same version.
+def versionSyncCheck = tasks.register('versionSyncCheck') {
+    group = 'verification'
+    description = 'Fails when this build declares a version other than the root pom.xml version.'
+    def declared = project.version.toString()
+    def properties = layout.projectDirectory.file('gradle.properties').asFile
+    inputs.file(rootPomFile)
+    doLast {
+        if (declared != pomVersion) {
+            throw new GradleException("Gradle version ${declared} differs from the root pom.xml version ${pomVersion}")
+        }
+        if (properties.exists() && properties.readLines().any { it.trim() ==~ /version\s*=.*/ }) {
+            throw new GradleException('gradle.properties declares a version; the version comes from ../pom.xml (D-083)')
+        }
+    }
+}
+tasks.named('check') {
+    dependsOn versionSyncCheck
+}

@@ -77,7 +77,7 @@ gitMavenPublisher {
     repository = "https://github.com/org/maven-snapshots.git" // Property<String>, required
     branch = "gh-pages"                                       // Property<String>
     nojekyll = false                                          // Property<Boolean>, writes .nojekyll at the root
-    token = providers.environmentVariable("GIT_PUBLISHER_TOKEN") // Property<String>, default: that env var, then gradle property gitPublisherToken
+    token = "..."                                             // Property<String>, optional. Unset: env GIT_PUBLISHER_TOKEN, then gradle property gitPublisherToken, read at execution time (D-087)
     username = "x-access-token"                               // Property<String>
     keepSnapshots = 3                                         // Property<Int>
     keepVersions = -1                                         // Property<Int>, Phase 3

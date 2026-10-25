@@ -1,0 +1,20 @@
+plugins {
+    id 'java-library'
+    id 'io.github.ivangsa.git-maven-publisher' version '0.1.0'
+}
+
+group = 'com.acme'
+version = '1.0-SNAPSHOT'
+
+gitMavenPublisher {
+    repository = 'https://github.com/<owner>/<snapshots-repo>.git'
+    branch = 'snapshots'
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+        }
+    }
+}

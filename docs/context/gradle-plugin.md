@@ -24,8 +24,9 @@ Thin wrapper over the standard `maven-publish` plugin. Never generates artifacts
 
 ## KMP
 No special handling. Every publication (root, `jvm`, `js`, native) has its own artifactId, `.module` and POM,
-all written to the same repository in one transaction. `.module` files reference timestamped names, so publish in place, never
-re-deploy from a staging copy.
+all written to the same repository in one transaction. `.module` files name `-SNAPSHOT` files and `available-at` modules; the consumer maps
+`-SNAPSHOT` to the timestamp of the module it read (D-088), so every publication of one build must share one timestamp: publish in place in one
+transaction, never re-deploy from a staging copy.
 
 ## Tests
 Gradle TestKit: multi-project single commit; failure in any participant → no push, also with `--continue`; `--parallel` never pushes early;

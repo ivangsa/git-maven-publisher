@@ -56,16 +56,24 @@ class ReadmeSnippetsTest {
         assertThat(isCopied("<project>\n  <invented/>\n</project>", corpus)).isFalse();
     }
 
-    /** Text of every fenced code block, without the fences. */
+    /**
+     * Text of every fenced code block, without the fences, except the Gradle ones ({@code groovy} blocks and {@code ./gradlew}
+     * commands): those are checked by {@code ReadmeGradleSnippetsTest} (T44, D-094).
+     */
     static List<String> snippets(String markdown) {
         List<String> snippets = new ArrayList<>();
         StringBuilder current = null;
+        boolean gradle = false;
         for (String line : markdown.replace("\r\n", "\n").split("\n", -1)) {
             if (line.startsWith("```")) {
                 if (current == null) {
                     current = new StringBuilder();
+                    gradle = line.equals("```groovy");
                 } else {
-                    snippets.add(current.toString().stripTrailing());
+                    String text = current.toString().stripTrailing();
+                    if (!gradle && !text.startsWith("./gradlew ")) {
+                        snippets.add(text);
+                    }
                     current = null;
                 }
             } else if (current != null) {
