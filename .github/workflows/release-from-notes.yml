@@ -101,12 +101,18 @@ jobs:
         run: |
           bundle="gradle-plugin/build/central-bundle/git-maven-publisher-gradle-plugin-${RELEASE_VERSION}-central-bundle.zip"
           bearer="$(printf '%s:%s' "${CENTRAL_USERNAME}" "${CENTRAL_TOKEN}" | base64 -w0)"
-          printf 'header = "Authorization: Bearer %s"\n' "${bearer}" | curl --silent --show-error --fail-with-body --max-time 600 \
+          echo "::add-mask::${bearer}"
+          if ! printf 'header = "Authorization: Bearer %s"\n' "${bearer}" | curl --silent --show-error --fail-with-body --max-time 600 \
             --config - \
             --request POST \
             --form "bundle=@${bundle}" \
             --output deployment-id.txt \
-            "https://central.sonatype.com/api/v1/publisher/upload?name=git-maven-publisher-gradle-plugin-${RELEASE_VERSION}&publishingType=USER_MANAGED"
+            "https://central.sonatype.com/api/v1/publisher/upload?name=git-maven-publisher-gradle-plugin-${RELEASE_VERSION}&publishingType=USER_MANAGED"; then
+            echo "Central upload failed; its answer:" >&2
+            cat deployment-id.txt >&2 || true
+            echo >&2
+            exit 1
+          fi
           deployment_id="$(cat deployment-id.txt)"
           echo "Uploaded; Central deployment id: ${deployment_id}"
           {

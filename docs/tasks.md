@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · next: re-review of BR15, BL1, BR16, develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111); re-review 2026-10-25-a3707d0 FIX FIRST: R43-R45 open before B20
+**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · BR17 failed review verification: R43/R46 · next: fix R46, re-review BR17, develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111); re-review 2026-10-25-a3707d0 FIX FIRST: R43-R45 open before B20
 
 ## Batches
 
@@ -57,6 +57,7 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | BR15 | R42 (release repository URL with a query or fragment) | implementer | core | yes (re-review of BR15) | done |
 | BL1 | License switched from Apache 2.0 to MIT (D-110, maintainer decision 2026-10-25; headers, POM licenses, docs; third-party Apache files unchanged) | mechanic | - | | done |
 | BR16 | T45 (redefined: Gradle plugin to Maven Central), R35 (docs), T51 dropped (D-111) | implementer | gradle-plugin, testing | yes (re-review of BR15, BL1, BR16) | done |
+| BR17 | R43, R44, R45 (release check asks plain path segments only, Pages URL statement corrected, Central upload shows the error body and masks the bearer; D-112) | implementer | core, docs, workflows | yes (re-review of BR17) | failed review verification: R43/R46 |
 | B20 | T49 | implementer | maven-plugin, gradle-plugin | | todo |
 | B21 | T50, T52 (T51 dropped, Q7) | mechanic | testing | yes (end of Phase 3) | todo |
 | manual | T33 | maintainer | - | | after T32b (self-publication part after the repo is public, D-074); not dispatched to an agent |
@@ -490,17 +491,26 @@ Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R42Releas
 From [review 2026-10-25-a3707d0](reviews/2026-10-25-a3707d0.md) (re-review of BR15, BL1 and BR16, verdict FIX FIRST).
 Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R43ReleaseCheckPathSegmentReviewTest.java`.
 
-- [ ] R43 The release check asks exactly the POM path, whatever the directory names (minor, F1)
+- [!] R43 The release check asks exactly the POM path, whatever the directory names (minor, F1; [review 2026-10-25-03ebe01](reviews/2026-10-25-03ebe01.md), F1)
   `ReleaseCheck.exists` appends artifactId and base version (directory names of the tree) to the URL string unencoded; a `?` in a name sends the request to
   another resource (`HEAD /maven2/org/acme/lib/1.0` for `1.0?rc-SNAPSHOT`), and a non-HTML 200 there deletes the version. Percent-encode each path segment, or
   answer "no" without a request for a segment with URI-reserved characters; record the choice in decisions.
   Done when: `R43ReleaseCheckPathSegmentReviewTest` passes and the full build passes.
-- [ ] R44 Correct the GitHub Pages statement of D-111 and the snapshots workflow comment (minor, F2)
+- [x] R44 Correct the GitHub Pages statement of D-111 and the snapshots workflow comment (minor, F2)
   Pages serves the branch at `https://www.zenwave360.io/maven-snapshots/` (`zenwave360.github.io` redirects there); `www.zenwave.io` was a wrong URL, not a Pages fault.
   Fix the D-111 correction note and the comment in `publish-maven-snapshots.yml`. If the maintainer wants the Pages URL in the README snippet, change
   `gradle-plugin/src/test/resources/readme/settings.gradle` and `SNAPSHOTS_SITE` in `ReadmeGradleSnippetsTest` with it.
   Done when: decisions and the workflow comment are correct, `actionlint` passes and the full build passes.
-- [ ] R45 Show Central's answer when the Gradle plugin upload fails, and mask the derived bearer (minor, F3)
+- [x] R45 Show Central's answer when the Gradle plugin upload fails, and mask the derived bearer (minor, F3)
   `release-from-notes.yml` upload step: on a curl failure print `deployment-id.txt` (the response body) to stderr before exiting non-zero; add
   `::add-mask::` for the base64 bearer before the curl call.
   Done when: `actionlint` passes and the step prints the body on a non-2xx answer (shown with a local run of the step's script against a stub server).
+
+From [review 2026-10-25-03ebe01](reviews/2026-10-25-03ebe01.md) (focused re-review of BR17, verdict FIX FIRST).
+Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R46ReleaseCheckValidMavenVersionReviewTest.java`.
+
+- [ ] R46 Preserve release-aware cleanup for Maven-valid URI-safe versions (minor, F1)
+  R43's ASCII allow-list rejects Maven-valid versions such as `1.0@rc`, so `ReleaseCheck` returns doubt without asking
+  the POM path and release-aware cleanup retains `1.0@rc-SNAPSHOT` forever. Reject only characters that could alter
+  the URL path, or percent-encode every valid path segment; retain R43's no-request behavior for `?` and `#`.
+  Done when: `R43ReleaseCheckPathSegmentReviewTest` and `R46ReleaseCheckValidMavenVersionReviewTest` pass, then the full build passes.

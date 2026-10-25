@@ -191,8 +191,8 @@ jobs:
           done
 
       # The Gradle plugin is resolved the way the README tells users to: by its id, with the snapshots repository and the Plugin Portal
-      # in pluginManagement (T45, D-111). The URL is the branch on raw.githubusercontent.com (www.zenwave.io/maven-snapshots/ is not
-      # served by GitHub Pages: the domain answers 404). The same wait as above (R31, D-102) runs for the plugin jar and its marker.
+      # in pluginManagement (T45, D-111). The URL is the branch on raw.githubusercontent.com (GitHub Pages serves the same branch at
+      # https://www.zenwave360.io/maven-snapshots/ too; www.zenwave.io, without the 360, is another site and answers 404). The same wait as above (R31, D-102) runs for the plugin jar and its marker.
       - name: Check that the branch serves the Gradle plugin build just pushed
         env:
           GRADLE_PLUGIN_BUILD: ${{ needs.publish.outputs.gradle-plugin-build }}

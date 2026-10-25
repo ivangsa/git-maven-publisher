@@ -25,7 +25,7 @@ import java.util.Map;
  *
  * <p>"Exists" means: for {@code file:} a regular file; for {@code https} a final answer (redirects are followed) of
  * status 200 whose content type is not HTML. Everything else is doubt and means no: other statuses, an HTML page
- * (login or landing pages), timeouts, errors. A failure other than a plain 404 is logged once, without the query.
+ * (login or landing pages), timeouts, errors, and names that are not plain path segments (R43, D-112). A failure other than a plain 404 is logged once, without the query.
  */
 final class ReleaseCheck {
 
@@ -43,6 +43,9 @@ final class ReleaseCheck {
     }
 
     boolean exists(URI repository, String groupPath, String artifactId, String base) {
+        if (!plainPath(groupPath) || !plainSegment(artifactId) || !plainSegment(base)) {
+            return false; // doubt (R43, D-112): never build a URL from a name that is not a plain path segment
+        }
         String relative = groupPath + "/" + artifactId + "/" + base + "/" + artifactId + "-" + base + ".pom";
         URI target;
         if (repository.getRawQuery() != null || repository.getRawFragment() != null) {
@@ -61,6 +64,26 @@ final class ReleaseCheck {
         boolean answer = ask(target);
         answers.put(target, answer);
         return answer;
+    }
+
+    private static boolean plainPath(String path) {
+        if (path == null || path.isEmpty()) {
+            return false;
+        }
+        for (String segment : path.split("/", -1)) {
+            if (!plainSegment(segment)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** A plain path segment: letters, digits and {@code . _ + ~ -}; not empty, not {@code .} or {@code ..}. */
+    private static boolean plainSegment(String segment) {
+        return segment != null
+                && !segment.equals(".")
+                && !segment.equals("..")
+                && segment.matches("[A-Za-z0-9._+~-]+");
     }
 
     private boolean ask(URI target) {

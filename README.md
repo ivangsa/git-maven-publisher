@@ -127,6 +127,8 @@ pluginManagement {
 }
 ```
 
+The same branch is also served by GitHub Pages at `https://www.zenwave360.io/maven-snapshots/`; use that URL instead if you prefer it.
+
 ## Authentication
 
 Tokens reach the plugin in one of three ways, in this order: the `settings.xml` server named by `serverId` (Maven), the environment variable `GIT_PUBLISHER_TOKEN`, or anonymous (only for `file` repositories). Gradle reads the environment variable, then the Gradle property `gitPublisherToken` (for example in `~/.gradle/gradle.properties`, never in the project). A token never goes into the POM or build script, into the remote URL, the Git config or a log line.
