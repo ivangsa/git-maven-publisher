@@ -65,7 +65,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T00 Project plan
   Brief, design, tasks, decisions, questions, CLAUDE.md.
   Done when: files committed as `T00: project plan`.
-- [x] T01 Build skeleton
+- [!] T01 Build skeleton ([review 2026-10-25-3044006](reviews/2026-10-25-3044006.md), R41)
   Root `pom.xml` (Java 17 release, Apache 2.0, groupId `io.github.ivangsa`), Maven Wrapper 3.10.x, empty `core`, `test-fixtures`, `maven-plugin` modules, `.gitignore`, `LICENSE`, README stub, license-header check.
   Done when: `./mvnw verify` passes on a clean clone.
 - [x] T02 CI workflow
@@ -466,3 +466,11 @@ Review tests: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R36KeepV
 - [x] R40 Design §6 wording: whole-directory drops (minor, F5)
   "Non-timestamped files are never deleted by retention" applies to build retention only; keepVersions and release cleanup delete whole version directories.
   Done when: design §6 updated.
+
+From [review 2026-10-25-3044006](reviews/2026-10-25-3044006.md) (committed-code validation, verdict FIX FIRST).
+
+- [ ] R41 Maven Wrapper runs on native Windows (critical, F1)
+  The committed `mvnw.cmd` indexes the null `DirectoryInfo.Target` property while determining its distribution directory, so every
+  Codex-prescribed native-Windows wrapper invocation fails before Maven starts. Update the wrapper to handle a normal non-link
+  `.m2` directory and prove `mvnw.cmd --batch-mode --no-transfer-progress -s C:/Users/ivangsa/.codex/maven/settings.xml verify`
+  passes from a clean checkout.
