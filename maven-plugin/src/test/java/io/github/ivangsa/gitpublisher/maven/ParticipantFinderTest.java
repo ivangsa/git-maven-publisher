@@ -96,6 +96,22 @@ class ParticipantFinderTest {
     }
 
     @Test
+    void everyBindingExecutionOfOneProjectIsAParticipant() {
+        Plugin plugin = ours(null, "deploy");
+        PluginExecution second = new PluginExecution();
+        second.setId("second");
+        second.setGoals(List.of("deploy"));
+        plugin.addExecution(second);
+        MavenProject repeated = project("r", plugin);
+
+        assertThat(ParticipantFinder.find(List.of(repeated), G + ":" + A))
+                .containsExactlyInAnyOrder("acme:r:1.0-SNAPSHOT@publish", "acme:r:1.0-SNAPSHOT@second");
+        assertThat(ParticipantFinder.id(repeated, "second", G + ":" + A)).isEqualTo("acme:r:1.0-SNAPSHOT@second");
+        assertThat(ParticipantFinder.id(project("a", ours(null, "deploy")), "publish", G + ":" + A))
+                .isEqualTo("acme:a:1.0-SNAPSHOT");
+    }
+
+    @Test
     void theIdentityIsGroupArtifactVersion() {
         assertThat(ParticipantFinder.id(project("a"))).isEqualTo("acme:a:1.0-SNAPSHOT");
     }

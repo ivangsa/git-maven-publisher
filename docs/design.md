@@ -60,6 +60,7 @@ No token parameter or property: tokens never go on the command line or into the 
   `commitAuthor`, `keepSnapshots`, `keepVersions`, `checksumAlgorithms` and `maxAttempts`, because the single publication
   uses one set of them. A mismatch fails the build before checkout and names the differing settings. A skipped
   participant checks in without settings and is not compared. Per-module `skip` is allowed.
+- **Repeated binding:** when one project binds `deploy` in several executions, each execution is its own participant (`g:a:v@executionId`) and the set completes only after all of them checked in; nothing is pushed while a later execution can still fail (D-082).
 - **Trigger:** the participant that completes the set runs checkout → one `RepositorySystem.deploy` of everything collected →
   publish. Thread-safe under `-T`: completion is a counter over the participant set, not reactor order.
 - **Guarantee:** push happens only after every participating execution completed successfully. If a participant fails
@@ -179,7 +180,7 @@ Invariants (checked by `IntegrityCheck` before commit, and by every test via the
 - Every `<version>` in A-level metadata has an existing directory with at least one regular file below it (Git stores no empty directories, D-031).
 - `latest`/`release` are members of `<versions>`.
 - Every metadata file has checksum files for the configured algorithms, and they match.
-- XML is well formed and parses with the oracle parser (`maven-repository-metadata`, test scope).
+- XML is well formed and parses with the oracle parser (`maven-repository-metadata`, test scope). The core reader rejects what that parser rejects: a known single-valued field repeated within its element (D-081).
 
 Checksum files of rewritten metadata are regenerated for every algorithm already present next to it, plus the configured ones.
 
@@ -187,7 +188,7 @@ Checksum files of rewritten metadata are regenerated for every algorithm already
 
 Runs per touched `g:a:v-SNAPSHOT` directory, inside the same commit.
 
-- A *build* = all files whose name contains the same `<yyyyMMdd.HHmmss>-<buildNumber>` (artifacts, `.pom`, `.module`, classifiers, `.asc`, checksums).
+- A *build* = all files whose name starts with `<artifactId>-<baseVersion>-<yyyyMMdd.HHmmss>-<buildNumber>` followed by `-` or `.` (artifacts, `.pom`, `.module`, classifiers, `.asc`, checksums). The artifactId is the name of the directory above the version directory; a name that does not start with that prefix is not a build file and is never touched (D-080).
   Builds are identified from file names, not from `<snapshotVersions>` (which only lists the current one per key).
 - Order builds by `(buildNumber, timestamp)`, newest first: Maven stamps the session start time, so a build that started earlier but deployed later has an older timestamp and a higher build number, and it is the one the metadata points at (D-025). Keep the first `keepSnapshots`, delete the rest.
 - Rewrite V-level metadata: drop `<snapshotVersion>` entries whose file was deleted. If the newest build is kept, `<snapshot>` is unchanged.

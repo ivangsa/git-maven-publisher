@@ -54,12 +54,12 @@ final class ReactorPublisher {
         Credentials credentials = CredentialsResolver.resolve(
                 parameters.serverId(), session.getRequest().getServers(), settingsDecrypter, System::getenv, log::warn);
         PublishConfig config = parameters.toConfig(credentials);
-        List<String> coordinates = active.stream().map(Entry::project).toList();
+        List<String> coordinates = active.stream().map(Entry::project).distinct().toList();
         Path root = Path.of(session.getExecutionRootDirectory());
         PublishInfo info = new PublishInfo(coordinates, SourceCommit.find(root, System::getenv));
 
         try (Publication publication = new GitPublisher(config, new MavenPublisherLog(log)).checkout()) {
-            List<Artifact> artifacts = active.stream().flatMap(e -> e.artifacts().stream()).toList();
+            List<Artifact> artifacts = active.stream().flatMap(e -> e.artifacts().stream()).distinct().toList();
             if (!artifacts.isEmpty()) {
                 NativeDeploy.deploy(
                         repositorySystem,

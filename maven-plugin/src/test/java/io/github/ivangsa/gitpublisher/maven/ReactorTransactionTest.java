@@ -69,6 +69,16 @@ class ReactorTransactionTest {
     }
 
     @Test
+    void everyExecutionOfARepeatedBindingMustCheckInBeforeTheSetCompletes() throws Exception {
+        ReactorTransaction tx = new ReactorTransaction(Set.of("a@first", "a@second"));
+
+        assertThat(tx.checkIn(new Entry("a", "first", false, P, List.of()))).isEmpty();
+        Optional<List<Entry>> done = tx.checkIn(new Entry("a", "second", false, P, List.of()));
+
+        assertThat(done).isPresent();
+    }
+
+    @Test
     void aSkippedParticipantStillCountsAndCanBeTheLastToCheckIn() throws Exception {
         ReactorTransaction tx = new ReactorTransaction(Set.of("a", "b"));
 

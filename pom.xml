@@ -80,10 +80,13 @@
     <license-maven-plugin.version>5.1.2</license-maven-plugin.version>
     <maven-invoker-plugin.version>3.9.1</maven-invoker-plugin.version>
 
-    <!-- Release profile only (T32a, D-072): sources, javadoc, signatures, Central bundle. -->
+    <maven-release-plugin.version>3.3.1</maven-release-plugin.version>
+    <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
+
+    <!-- Release profile only (T32a, D-072, D-078): sources, javadoc, signatures, Central bundle. -->
     <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
     <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
-    <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
+    <sign-maven-plugin.version>1.0.0</sign-maven-plugin.version>
     <central-publishing-maven-plugin.version>0.12.0</central-publishing-maven-plugin.version>
     <!-- true: build the Central bundle, do not upload it (central-publishing-maven-plugin skipUpload) -->
     <central.skipUpload>false</central.skipUpload>
@@ -174,6 +177,22 @@
     </pluginManagement>
 
     <plugins>
+      <!--
+        maven-release-plugin (D-078, the reusable release-maven.yml of zenwave360/release-workflows): release:prepare only commits
+        and tags locally, the workflow pushes the release branch through a PR. preparationGoals: the plugin ITs pin 0.1.0-SNAPSHOT,
+        so they cannot run at the release version (D-077); they ran in CI at the snapshot version.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-release-plugin</artifactId>
+        <version>${maven-release-plugin.version}</version>
+        <configuration>
+          <pushChanges>false</pushChanges>
+          <tagNameFormat>v@{project.version}</tagNameFormat>
+          <autoVersionSubmodules>true</autoVersionSubmodules>
+          <preparationGoals>clean verify -Dinvoker.skip=true</preparationGoals>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
@@ -231,14 +250,24 @@
 
   <profiles>
     <!--
-      Release build (T32a, D-072, D-077). Not part of the normal build: no javadoc, no signing, no Central extension.
-      Steps, as in .github/workflows/release.yml: verify at the current version; set the release version (not committed);
-      ./mvnw -Prelease deploy -DskipTests -Dinvoker.skip=true. Signing reads MAVEN_GPG_KEY and MAVEN_GPG_PASSPHRASE (signer bc).
-      -Dcentral.skipUpload=true writes the bundle without uploading it. The workflow is the only place that uploads.
-      test-fixtures sets central.skipPublishing=true, so it is never in a bundle.
+      Release build (T32a, D-072, D-077, D-078, D-079). Active when SIGN_KEY is in the environment, which only the release
+      workflow sets (release-from-notes.yml calls zenwave360/release-workflows release-maven.yml, which runs mvn deploy with
+      SIGN_KEY and SIGN_KEY_PASS). Not active in ./mvnw verify, in CI, or in a local build without SIGN_KEY; -Prelease also works.
+      Adds sources, javadoc, signatures (sign-maven-plugin reads SIGN_KEY and SIGN_KEY_PASS) and the Central deployment
+      (autoPublish false). invoker.skip: the plugin ITs pin 0.1.0-SNAPSHOT, so they run in CI at the snapshot version only.
+      -Dcentral.skipUpload=true writes the bundle without uploading it (local check). test-fixtures sets central.skipPublishing=true,
+      so it is never in a bundle.
     -->
     <profile>
       <id>release</id>
+      <activation>
+        <property>
+          <name>env.SIGN_KEY</name>
+        </property>
+      </activation>
+      <properties>
+        <invoker.skip>true</invoker.skip>
+      </properties>
       <build>
         <plugins>
           <plugin>
@@ -268,23 +297,19 @@
             </executions>
           </plugin>
           <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-gpg-plugin</artifactId>
-            <version>${maven-gpg-plugin.version}</version>
+            <groupId>org.simplify4u.plugins</groupId>
+            <artifactId>sign-maven-plugin</artifactId>
+            <version>${sign-maven-plugin.version}</version>
             <executions>
               <execution>
                 <id>sign-artifacts</id>
-                <phase>verify</phase>
                 <goals>
                   <goal>sign</goal>
                 </goals>
-                <configuration>
-                  <!--
-                    Pure Java signer (Bouncy Castle): no gpg executable, no gpg-agent, no keyring import. The armored key is
-                    read from env MAVEN_GPG_KEY and its passphrase from MAVEN_GPG_PASSPHRASE (D-077). Neither is written to disk.
-                  -->
-                  <signer>bc</signer>
-                </configuration>
+                <!--
+                  Signing as in the ZenWave360 POMs (D-078): sign-maven-plugin reads the armored key from env SIGN_KEY and its
+                  passphrase from SIGN_KEY_PASS. No gpg executable and no keyring on the runner; the key is not written to disk.
+                -->
               </execution>
             </executions>
           </plugin>

@@ -1,0 +1,31 @@
+name: Build and Publish Snapshots
+
+# Verify only (D-078): publish-snapshots stays false, so the reusable workflow builds and tests develop and never deploys.
+# Runs on push to develop, and is dispatched by the release flow after sync-develop. Publication stays off until T33 (D-074).
+# Secrets are passed by name, never with `secrets: inherit`.
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maven-snapshots-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-snapshot:
+    uses: zenwave360/release-workflows/.github/workflows/publish-snapshots-maven.yml@3c40e2706b34b436b2c6e6dbaa431fed329c5f0a # main at 3c40e27
+    with:
+      publish-snapshots: false
+      jacoco-csv-files: >
+        core/target/site/jacoco/jacoco.csv
+        maven-plugin/target/site/jacoco/jacoco.csv
+    secrets:
+      CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+      CENTRAL_TOKEN: ${{ secrets.CENTRAL_TOKEN }}
+      SIGN_KEY: ${{ secrets.SIGN_KEY }}
+      SIGN_KEY_PASS: ${{ secrets.SIGN_KEY_PASS }}

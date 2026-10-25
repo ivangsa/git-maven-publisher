@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.plugin.MojoExecution;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.descriptor.PluginDescriptor;
@@ -100,6 +101,9 @@ public class DeployMojo extends AbstractMojo {
     @Component
     SettingsDecrypter settingsDecrypter;
 
+    @Parameter(defaultValue = "${mojoExecution}", readonly = true, required = true)
+    MojoExecution mojoExecution;
+
     @Parameter(defaultValue = "${plugin}", readonly = true, required = true)
     PluginDescriptor pluginDescriptor;
 
@@ -110,17 +114,20 @@ public class DeployMojo extends AbstractMojo {
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         String id = ParticipantFinder.id(project);
-        ReactorTransaction transaction =
-                ReactorTransaction.of(session, pluginDescriptor.getGroupId() + ":" + pluginDescriptor.getArtifactId());
+        String pluginKey = pluginDescriptor.getGroupId() + ":" + pluginDescriptor.getArtifactId();
+        String execution = ParticipantFinder.id(project, mojoExecution.getExecutionId(), pluginKey)
+                .substring(id.length())
+                .replaceFirst("^@", "");
+        ReactorTransaction transaction = ReactorTransaction.of(session, pluginKey);
         Entry entry;
         if (skip) {
             getLog().info("Skipping " + id + " (git-publisher.skip)");
-            entry = new Entry(id, true, null);
+            entry = new Entry(id, execution, true, null, List.of());
         } else {
             ReleaseGuard.check(project.getGroupId() + ":" + project.getArtifactId(), project.getVersion(), allowReleases);
             PublisherParameters parameters = parameters();
             parameters.toConfig(Credentials.none()); // fail on invalid settings before checking in
-            entry = new Entry(id, false, parameters, ProjectArtifacts.collect(project));
+            entry = new Entry(id, execution, false, parameters, ProjectArtifacts.collect(project));
         }
         Optional<List<Entry>> complete = transaction.checkIn(entry);
         if (complete.isPresent()) {

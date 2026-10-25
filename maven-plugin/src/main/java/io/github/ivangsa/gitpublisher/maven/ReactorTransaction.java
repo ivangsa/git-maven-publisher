@@ -34,11 +34,28 @@ final class ReactorTransaction {
 
     private static final String SESSION_KEY = ReactorTransaction.class.getName();
 
-    /** What one participant contributes: its identity and (unless skipped) its settings. */
-    record Entry(String project, boolean skipped, PublisherParameters parameters, List<Artifact> artifacts) {
+    /**
+     * What one participant contributes: its project, its execution id when the project binds the goal more than once
+     * (empty otherwise) and (unless skipped) its settings.
+     */
+    record Entry(
+            String project,
+            String execution,
+            boolean skipped,
+            PublisherParameters parameters,
+            List<Artifact> artifacts) {
+
+        Entry(String project, boolean skipped, PublisherParameters parameters, List<Artifact> artifacts) {
+            this(project, "", skipped, parameters, artifacts);
+        }
 
         Entry(String project, boolean skipped, PublisherParameters parameters) {
-            this(project, skipped, parameters, List.of());
+            this(project, "", skipped, parameters, List.of());
+        }
+
+        /** The participant identity: the project, qualified by the execution id for a repeated binding. */
+        String key() {
+            return execution.isEmpty() ? project : project + "@" + execution;
         }
     }
 
@@ -67,8 +84,8 @@ final class ReactorTransaction {
      *     participant that checked in earlier (before any checkout)
      */
     synchronized Optional<List<Entry>> checkIn(Entry entry) throws MojoFailureException {
-        if (!participants.contains(entry.project())) {
-            throw new MojoFailureException(entry.project()
+        if (!participants.contains(entry.key())) {
+            throw new MojoFailureException(entry.key()
                     + " runs git-maven-publisher:deploy but its effective model does not bind the goal, so it is not"
                     + " in the participant set of this build. Bind the goal in every module that should publish.");
         }
@@ -77,7 +94,7 @@ final class ReactorTransaction {
         }
         if (!entry.skipped()) {
             for (Entry earlier : entries.values()) {
-                if (earlier.skipped() || earlier.project().equals(entry.project())) {
+                if (earlier.skipped() || earlier.key().equals(entry.key())) {
                     continue;
                 }
                 List<String> differing = entry.parameters().differencesFrom(earlier.parameters());
@@ -90,7 +107,7 @@ final class ReactorTransaction {
                 break;
             }
         }
-        entries.put(entry.project(), entry);
+        entries.put(entry.key(), entry);
         if (entries.keySet().containsAll(participants)) {
             completed = true;
             return Optional.of(List.copyOf(entries.values()));

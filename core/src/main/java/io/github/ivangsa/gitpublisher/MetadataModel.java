@@ -72,7 +72,43 @@ final class MetadataModel {
         if (!root.name().equals("metadata")) {
             throw new IOException("root element is <" + root.name() + ">, expected <metadata>");
         }
+        rejectDuplicates(root, "metadata", SINGLE_FIELDS_OF_METADATA);
+        for (XmlNode v : root.children("versioning")) {
+            rejectDuplicates(v, "versioning", SINGLE_FIELDS_OF_VERSIONING);
+            for (XmlNode snapshot : v.children("snapshot")) {
+                rejectDuplicates(snapshot, "snapshot", SINGLE_FIELDS_OF_SNAPSHOT);
+            }
+            for (XmlNode container : v.children("snapshotVersions")) {
+                for (XmlNode sv : container.children("snapshotVersion")) {
+                    rejectDuplicates(sv, "snapshotVersion", SINGLE_FIELDS_OF_SNAPSHOT_VERSION);
+                }
+            }
+        }
+        for (XmlNode container : root.children("plugins")) {
+            for (XmlNode plugin : container.children("plugin")) {
+                rejectDuplicates(plugin, "plugin", SINGLE_FIELDS_OF_PLUGIN);
+            }
+        }
         return new MetadataModel(root);
+    }
+
+    // Fields that Maven's metadata reader accepts at most once per element; it rejects a repeated tag.
+    private static final List<String> SINGLE_FIELDS_OF_METADATA =
+            List.of("groupId", "artifactId", "version", "versioning", "plugins");
+    private static final List<String> SINGLE_FIELDS_OF_VERSIONING =
+            List.of("latest", "release", "snapshot", "versions", "lastUpdated", "snapshotVersions");
+    private static final List<String> SINGLE_FIELDS_OF_SNAPSHOT = List.of("timestamp", "buildNumber", "localCopy");
+    private static final List<String> SINGLE_FIELDS_OF_SNAPSHOT_VERSION =
+            List.of("classifier", "extension", "value", "updated");
+    private static final List<String> SINGLE_FIELDS_OF_PLUGIN = List.of("name", "prefix", "artifactId");
+
+    private static void rejectDuplicates(XmlNode node, String element, List<String> singleFields)
+            throws IOException {
+        for (String field : singleFields) {
+            if (node.children(field).size() > 1) {
+                throw new IOException("duplicated <" + field + "> in <" + element + ">");
+            }
+        }
     }
 
     void write(Path file) throws IOException {

@@ -78,13 +78,16 @@ final class Retention {
             return List.of();
         }
         String base = version.substring(0, version.length() - SNAPSHOT_SUFFIX.length());
-        Pattern buildPattern = Pattern.compile(Pattern.quote(base) + "-(\\d{8}\\.\\d{6})-(\\d+)(?=[-.])");
+        // Anchored: the complete artifactId and base version come first (design section 6).
+        String artifactId = dir.getParent().getFileName().toString();
+        Pattern buildPattern = Pattern.compile(
+                "^" + Pattern.quote(artifactId + "-" + base) + "-(\\d{8}\\.\\d{6})-(\\d+)(?=[-.])");
 
         Map<Build, List<Path>> builds = new TreeMap<>(Build.NEWEST_FIRST);
         try (Stream<Path> files = Files.list(dir)) {
             for (Path file : files.filter(Files::isRegularFile).toList()) {
                 Matcher m = buildPattern.matcher(file.getFileName().toString());
-                if (m.find()) {
+                if (m.find()) { // anchored at the start: complete artifactId and base version first
                     builds.computeIfAbsent(new Build(m.group(1), Integer.parseInt(m.group(2))), b -> new ArrayList<>())
                             .add(file);
                 }

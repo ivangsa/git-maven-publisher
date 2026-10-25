@@ -1,0 +1,45 @@
+name: Release from Notes
+
+# Maintainer-dispatched release (D-072, D-078). Calls zenwave360/release-workflows release-maven.yml, pinned to a full commit
+# SHA (main at 3c40e27). Secrets are passed by name, never with `secrets: inherit`. The Central gate is the environment
+# maven-central-upload of this repository: this is the only workflow that names it. Before the first run (T59b): main
+# requires PRs, the environment has a required reviewer and deploys from main only, and release-notes/release-notes.v<VERSION>.md
+# is committed to main.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without a v prefix (X.Y.Z or X.Y.Z-rc.N)"
+        required: true
+        type: string
+      developmentVersion:
+        description: "Next development version (X.Y.Z-SNAPSHOT). Leave empty to derive the next patch SNAPSHOT."
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # The reusable workflow's jobs ask for these; the caller's grant is the ceiling. Nothing here publishes by itself.
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    uses: zenwave360/release-workflows/.github/workflows/release-maven.yml@3c40e2706b34b436b2c6e6dbaa431fed329c5f0a # main at 3c40e27
+    with:
+      version: ${{ inputs.version }}
+      development-version: ${{ inputs.developmentVersion }}
+      central-environment: maven-central-upload
+    secrets:
+      CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+      CENTRAL_TOKEN: ${{ secrets.CENTRAL_TOKEN }}
+      SIGN_KEY: ${{ secrets.SIGN_KEY }}
+      SIGN_KEY_PASS: ${{ secrets.SIGN_KEY_PASS }}

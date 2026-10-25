@@ -28,6 +28,8 @@ Reports state the exact build command that was run and its result.
 - Write or update tests first. A task is done only when the full build passes.
 - In the same commit as the code: tick the task and update the status line.
 - Commit message: `T07: <task title>`. Push after every task.
+- Branches (D-083, T61): commit and push to `develop`, never to `main`. `main` changes only through pull requests (release PRs, or a
+  `develop` → `main` PR the maintainer merges). Start every session with `git switch develop && git pull --ff-only`.
 - Never tick a task with failing or skipped tests. Never weaken a test to make it pass.
 - If a task needs my decision, write it in docs/questions.md, mark the task `[?]`,
   and continue with the next unblocked task. Do not stop the session for it.

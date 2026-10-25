@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 revalidation FIX FIRST at be6b417 · T16, T17, T26 failed verification · Next: BR8 (R23–R25); BP4/T59 work excluded from this isolated review
+**Status:** Phase 1 fixed and re-reviewed (no findings); repo public; T61 branch model on (agents push to `develop`) · Next: BP5 (T60 self-publication), then Phase 2 (B15) on `develop`
 
 ## Batches
 
@@ -36,9 +36,11 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | BR7 | [!] T20 via R19, [!] T26 via R22, [!] T31 via R21; R20 | implementer | core, maven-plugin, testing | | done |
 | BP3 | T58 (multi-module split, D-075) | mechanic | testing | | done |
 | B14 | T32a | mechanic | maven-plugin | | done |
-| BR8 | [!] T16 via R23, [!] T17 via R24, [!] T26 via R25 | implementer | core, maven-plugin, testing | | todo (review be6b417: FIX FIRST) |
-| BP4 | T59 (release flow like release-workflows, D-078) | mechanic | maven-plugin, testing | | todo |
-| manual | T59b | maintainer | - | | after T59; not dispatched to an agent |
+| BR8 | [!] T16 via R23, [!] T17 via R24, [!] T26 via R25 | implementer | core, maven-plugin, testing | | done |
+| BP4 | T59 (release flow like release-workflows, D-078) | mechanic | maven-plugin, testing | | done |
+| BP5 | T60 (self-publication, D-083) | mechanic | maven-plugin, testing | | todo |
+| main | T61 (branch model switch, D-083) | orchestrator + maintainer | - | | done |
+| manual | T59b | maintainer | - | | partly done (repo public, environments, develop, badges); ruleset in T61 |
 | manual | T32b | maintainer | - | | after T59b; not dispatched to an agent |
 | B15 | T34, T35, T36, T37 | implementer | gradle-plugin | | todo |
 | B16 | T38, T39, T40 | implementer | gradle-plugin, testing | | todo |
@@ -132,10 +134,10 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
   Regenerate `.md5/.sha1/.sha256/.sha512` for a file (present algorithms + configured).
   Done when: output matches checksums Resolver wrote for the same file in `ResolverDeployer` trees.
 - ~~T15 Three-way metadata merge~~ removed (D-032): no metadata merge; concurrent changes to one path are a conflict (T21b).
-- [!] T16 Retention: keepSnapshots ([revalidation F2](reviews/2026-10-25-be6b417.md), R23)
+- [x] T16 Retention: keepSnapshots ([revalidation F2](reviews/2026-10-25-be6b417.md), R23)
   Delete old builds per touched `-SNAPSHOT` dir and rewrite V-level metadata + checksums.
   Done when: on Resolver trees with 1..6 builds (incl. classifiers and `.module`), exactly N builds remain and `MetadataAssertions` passes.
-- [!] T17 Integrity check ([revalidation F3](reviews/2026-10-25-be6b417.md), R24)
+- [x] T17 Integrity check ([revalidation F3](reviews/2026-10-25-be6b417.md), R24)
   Production `IntegrityCheck` (design §5 invariants).
   Done when: agrees with `MetadataAssertions` on all harness valid/broken trees.
 - [x] T18 Checkout
@@ -163,7 +165,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T25 Maven plugin skeleton
   `deploy` mojo, all parameters from design §2, release guard, `skip`.
   Done when: plugin descriptor generated; unit tests for release guard and parameter defaults.
-- [!] T26 Reactor collector and trigger (restored via R22; [revalidation F1](reviews/2026-10-25-be6b417.md), R25)
+- [x] T26 Reactor collector and trigger (restored via R22; [revalidation F1](reviews/2026-10-25-be6b417.md), R25)
   Participants, check-in, configuration check and guarantee per design §2 (Maven) and D-034. Session-scoped collector, `-T` safe.
   Done when: invoker ITs: 3 modules (one `pom` packaging) produce exactly one commit, with `-T 4` too; a participant with `skip=true` still lets the others publish;
   a failing participant with `--fail-at-end` produces no push; `-pl` on one module publishes only it; mismatched `repository` between modules fails before checkout;
@@ -195,12 +197,21 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
   Release workflow on `workflow_dispatch` only, environment `maven-central-upload`, secrets `CENTRAL_USERNAME`, `CENTRAL_TOKEN`, `SIGN_KEY`, `SIGN_KEY_PASS`; reuse `zenwave360/release-workflows` `release-maven.yml` if its inputs fit, else a local workflow with the same secret names.
   No other workflow references `maven-central-upload`. No agent dispatches the workflow, uploads to Central or uses the maintainer's key.
   Done when: a local release build with `skipPublishing` and a throwaway GPG key generated for the check produces the bundle; a check verifies, for each published artifact, jar, sources, javadoc, POM, `.asc` signatures valid for that key and checksums, and the POM fields Central requires (name, description, url, licenses, developers, scm); the release workflow passes `actionlint`.
-- [ ] T59 Release flow like `zenwave360/release-workflows` (D-078)
+- [x] T59 Release flow like `zenwave360/release-workflows` (D-078)
   Caller `release-from-notes.yml` for `release-maven.yml` pinned to a full SHA, named secrets; delete the interim `release.yml`. `maven-release-plugin` config per D-078;
   `sign-maven-plugin` with `SIGN_KEY`/`SIGN_KEY_PASS` instead of the bc signer; JaCoCo `jacoco.csv` for `core` and `maven-plugin`; `release-notes/release-notes.v0.1.0.md`;
   `publish-maven-snapshots.yml` caller (verify only). `test-fixtures` stays out of every bundle and of `release:prepare` deploys.
   No agent dispatches a workflow, uploads to Central or uses the maintainer's key (D-072).
   Done when: `actionlint` passes on every workflow; `./mvnw -B release:prepare -DdryRun=true -DreleaseVersion=0.1.0` passes; the T32a bundle check passes on a bundle signed by `sign-maven-plugin` with a throwaway key; `jacoco.csv` exists for both published jar modules after `./mvnw verify`; only `release-from-notes.yml` names `maven-central-upload`.
+- [ ] T60 Self-publication to `zenwave360/maven-snapshots` (D-083)
+  Workflow on push to `develop` (and `workflow_dispatch`): verify; then, in environment `git-publisher-snapshots`, `./mvnw install` and the installed plugin's `deploy` goal by full coordinates
+  to `https://github.com/zenwave360/maven-snapshots.git`, branch `gh-pages`, token `GIT_PUBLISHER_TOKEN`, concurrency group `maven-snapshots-io.github.ivangsa`; then a clean consumer job
+  (empty local repository) resolves `git-maven-publisher-maven-plugin` and `git-maven-publisher-core` at the pushed snapshot version from `https://raw.githubusercontent.com/zenwave360/maven-snapshots/gh-pages/`.
+  The existing `publish-maven-snapshots.yml` (verify through release-workflows) is folded in or kept as the verify job. No step writes the token to disk or logs; only this workflow names `git-publisher-snapshots`.
+  Done when: `actionlint` passes; the workflow's commands are the ones an invoker IT already runs (deploy goal by coordinates); the first run on `develop` publishes and the consumer job resolves, reported with the run id.
+- [x] T61 Branch model switch (D-083)
+  `main` ruleset: pull request required, no bypass, no force push, no deletion. AGENTS.md: agents commit and push to `develop`; `main` changes only through PRs. CI runs on `develop` and on PRs to `main`.
+  Done when: a direct push to `main` is rejected and the next agent batch lands on `develop` with CI green.
 - [ ] T59b Release prerequisites (manual, maintainer)
   Create `develop` and the orphan `badges` branch; when the repository is public: `main` ruleset requiring PRs with no bypass, environment `maven-central-upload` with a required reviewer and deployment branches `main`, Actions workflow permissions read-only. Then AGENTS.md switches agents to `develop`.
   Done when: the settings above are in place.
@@ -208,7 +219,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
   Dispatch `release-from-notes.yml` once with version 0.1.0; inspect the deployment in the Central portal; publish or drop it.
   Done when: the Central portal validates the deployment.
 - [ ] T33 Dogfooding and Phase 1 exit (manual, maintainer)
-  After T32b: publish ZenWave360's snapshots with the PAT (D-073), and, once the repository is public (D-074), this project's own snapshots with `GITHUB_TOKEN`. Serving is set up by hand.
+  ZenWave360's snapshots with the PAT (D-073) after T32b; this project's own snapshots through T60 into the same repository (D-083). Serving is set up by hand.
   Done when: two weeks of ZenWave360 snapshots resolved from the published branch with no manual fixes.
 
 ## Phase 2: Gradle + KMP
@@ -363,13 +374,13 @@ Review tests live in `src/test/java/io/github/ivangsa/gitpublisher/review/` (cor
 From [review 2026-10-25-be6b417](reviews/2026-10-25-be6b417.md) (all committed Phase 1 code, verdict FIX FIRST).
 Review performed on `review/phase1-be6b417`; uncommitted BP4/T59 work is excluded.
 
-- [ ] R23 Recognize snapshot builds after the complete artifactId (major, F2)
+- [x] R23 Recognize snapshot builds after the complete artifactId (major, F2)
   Anchor filename recognition to the canonical artifactId/base-version prefix; preserve unrelated files.
   Done when: both `R23RetentionFilenameBoundaryTest` regressions pass and the full build passes. Restore T16.
-- [ ] R24 Reject duplicate metadata fields that Maven cannot parse (minor, F3)
+- [x] R24 Reject duplicate metadata fields that Maven cannot parse (minor, F3)
   Keep core free of Maven runtime dependencies and preserve the namespace/unknown-element contracts.
   Done when: `R24IntegrityOracleParsingTest` passes, prior metadata tests pass and the full build passes. Restore T17.
-- [ ] R25 Prevent an early push when one project binds multiple deploy executions (major, F1)
+- [x] R25 Prevent an early push when one project binds multiple deploy executions (major, F1)
   Count all participating executions or reject repeated bindings before checkout/push; keep existing reactor guarantees.
   Done when: `review-repeated-execution` and its `R25RepeatedExecutionReview` no-push assertion pass, all existing
   participant/skip/parallel/failure ITs pass and the full build passes. Restore T26.
