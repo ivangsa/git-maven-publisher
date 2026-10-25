@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 agent work done except T59 · Last finished: B14 (T32a) · Next: BP4 (T59 release flow, D-078); then T59b and T32b (maintainer)
+**Status:** Phase 1 revalidation FIX FIRST at be6b417 · T16, T17, T26 failed verification · Next: BR8 (R23–R25); BP4/T59 work excluded from this isolated review
 
 ## Batches
 
@@ -21,9 +21,9 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | BR4 | R09, R10; restore T06, T10, R05 | implementer | testing | | done |
 | BP1 | T53, T54 | mechanic | testing | | done |
 | BP2 | T55, T56, T57; restore T09, R04 | implementer | testing | | done |
-| B04 | T12, T13, T14, T17 | implementer | core | | done |
+| B04 | T12, T13, T14, T17 | implementer | core | | failed review verification: T17/R24 |
 | ~~B05~~ | ~~T15~~ removed (D-032) | - | - | | removed |
-| B06 | T16 (retention) | implementer | core | yes (plan revision + retention) | done |
+| B06 | T16 (retention) | implementer | core | yes (plan revision + retention) | failed review verification: T16/R23 |
 | BR5 | R11, R12, R13, R14 | implementer | core, testing | | done |
 | B07 | T18, T19 | implementer | core | | done |
 | B08 | T20 (lease) | implementer | core | | done |
@@ -31,11 +31,12 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | B10 | T21b (conflict detection) | implementer | core | yes (lease + retry + replay + conflicts) | done |
 | BR6 | [!] T21 via R15; R16, R17, R18 | implementer | core, testing | | done |
 | B11 | T23, T24 (T22 dropped, D-044) | implementer | core, testing | | done |
-| B12 | T25, T26, T27, T28 | implementer | maven-plugin | | done |
+| B12 | T25, T26, T27, T28 | implementer | maven-plugin | | failed review verification: T26/R25 |
 | B13 | T29, T30, T31 | mechanic | maven-plugin | yes (end of Phase 1 code) | done (reviewed 0701e5d: FIX FIRST) |
 | BR7 | [!] T20 via R19, [!] T26 via R22, [!] T31 via R21; R20 | implementer | core, maven-plugin, testing | | done |
 | BP3 | T58 (multi-module split, D-075) | mechanic | testing | | done |
 | B14 | T32a | mechanic | maven-plugin | | done |
+| BR8 | [!] T16 via R23, [!] T17 via R24, [!] T26 via R25 | implementer | core, maven-plugin, testing | | todo (review be6b417: FIX FIRST) |
 | BP4 | T59 (release flow like release-workflows, D-078) | mechanic | maven-plugin, testing | | todo |
 | manual | T59b | maintainer | - | | after T59; not dispatched to an agent |
 | manual | T32b | maintainer | - | | after T59b; not dispatched to an agent |
@@ -131,10 +132,10 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
   Regenerate `.md5/.sha1/.sha256/.sha512` for a file (present algorithms + configured).
   Done when: output matches checksums Resolver wrote for the same file in `ResolverDeployer` trees.
 - ~~T15 Three-way metadata merge~~ removed (D-032): no metadata merge; concurrent changes to one path are a conflict (T21b).
-- [x] T16 Retention: keepSnapshots
+- [!] T16 Retention: keepSnapshots ([revalidation F2](reviews/2026-10-25-be6b417.md), R23)
   Delete old builds per touched `-SNAPSHOT` dir and rewrite V-level metadata + checksums.
   Done when: on Resolver trees with 1..6 builds (incl. classifiers and `.module`), exactly N builds remain and `MetadataAssertions` passes.
-- [x] T17 Integrity check
+- [!] T17 Integrity check ([revalidation F3](reviews/2026-10-25-be6b417.md), R24)
   Production `IntegrityCheck` (design §5 invariants).
   Done when: agrees with `MetadataAssertions` on all harness valid/broken trees.
 - [x] T18 Checkout
@@ -162,7 +163,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T25 Maven plugin skeleton
   `deploy` mojo, all parameters from design §2, release guard, `skip`.
   Done when: plugin descriptor generated; unit tests for release guard and parameter defaults.
-- [x] T26 Reactor collector and trigger (restored via R22)
+- [!] T26 Reactor collector and trigger (restored via R22; [revalidation F1](reviews/2026-10-25-be6b417.md), R25)
   Participants, check-in, configuration check and guarantee per design §2 (Maven) and D-034. Session-scoped collector, `-T` safe.
   Done when: invoker ITs: 3 modules (one `pom` packaging) produce exactly one commit, with `-T 4` too; a participant with `skip=true` still lets the others publish;
   a failing participant with `--fail-at-end` produces no push; `-pl` on one module publishes only it; mismatched `repository` between modules fails before checkout;
@@ -358,3 +359,17 @@ Review tests live in `src/test/java/io/github/ivangsa/gitpublisher/review/` (cor
   Invoker IT with a module that sets a different `<repository>`: build fails before checkout, nothing pushed. Design §2 describes the full
   settings comparison and the command-line rule of D-063.
   Done when: the IT passes and design §2 is updated. Restore T26 after the full build passes.
+
+From [review 2026-10-25-be6b417](reviews/2026-10-25-be6b417.md) (all committed Phase 1 code, verdict FIX FIRST).
+Review performed on `review/phase1-be6b417`; uncommitted BP4/T59 work is excluded.
+
+- [ ] R23 Recognize snapshot builds after the complete artifactId (major, F2)
+  Anchor filename recognition to the canonical artifactId/base-version prefix; preserve unrelated files.
+  Done when: both `R23RetentionFilenameBoundaryTest` regressions pass and the full build passes. Restore T16.
+- [ ] R24 Reject duplicate metadata fields that Maven cannot parse (minor, F3)
+  Keep core free of Maven runtime dependencies and preserve the namespace/unknown-element contracts.
+  Done when: `R24IntegrityOracleParsingTest` passes, prior metadata tests pass and the full build passes. Restore T17.
+- [ ] R25 Prevent an early push when one project binds multiple deploy executions (major, F1)
+  Count all participating executions or reject repeated bindings before checkout/push; keep existing reactor guarantees.
+  Done when: `review-repeated-execution` and its `R25RepeatedExecutionReview` no-push assertion pass, all existing
+  participant/skip/parallel/failure ITs pass and the full build passes. Restore T26.
