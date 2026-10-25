@@ -87,6 +87,7 @@ final class GitPublication implements Publication {
             }
         }
 
+        ReleaseCheck releaseCheck = new ReleaseCheck(log); // one client and one set of answers per publication
         int maxAttempts = config.retry().maxAttempts();
         String lastFailure = "";
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -96,7 +97,8 @@ final class GitPublication implements Publication {
                 }
                 Set<String> deletedPaths = new TreeSet<>();
                 for (Path path : Retention.apply(
-                        repositoryDirectory, touched, config.retention(), config.checksumAlgorithms())) {
+                        repositoryDirectory, touched, config.retention(), config.checksumAlgorithms(),
+                        releaseCheck)) {
                     deletedPaths.add(path.toString().replace('\\', '/'));
                 }
 

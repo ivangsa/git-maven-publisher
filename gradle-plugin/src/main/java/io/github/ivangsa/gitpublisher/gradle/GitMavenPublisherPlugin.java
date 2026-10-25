@@ -193,6 +193,7 @@ public class GitMavenPublisherPlugin implements Plugin<Project> {
                 extension.getUsername().get(),
                 String.valueOf(extension.getKeepSnapshots().get()),
                 String.valueOf(extension.getKeepVersions().get()),
+                String.valueOf(extension.getReleaseRepository().getOrNull()),
                 String.valueOf(extension.getAllowReleases().get()),
                 String.valueOf(extension.getMaxAttempts().get()),
                 String.valueOf(extension.getDryRun().get()));
@@ -204,7 +205,7 @@ public class GitMavenPublisherPlugin implements Plugin<Project> {
                 throw new GradleException("gitMavenPublisher settings of " + project.getDisplayName()
                         + " differ from those of project '" + known[0]
                         + "'. One publication serves the whole build, so every project must use the same repository,"
-                        + " branch, nojekyll, username, keepSnapshots, keepVersions, allowReleases, maxAttempts"
+                        + " branch, nojekyll, username, keepSnapshots, keepVersions, releaseRepository, allowReleases, maxAttempts"
                         + " and dryRun.");
             }
         }
@@ -234,6 +235,7 @@ public class GitMavenPublisherPlugin implements Plugin<Project> {
             parameters.getUsername().set(extension.getUsername());
             parameters.getKeepSnapshots().set(extension.getKeepSnapshots());
             parameters.getKeepVersions().set(extension.getKeepVersions());
+            parameters.getReleaseRepository().set(extension.getReleaseRepository());
             parameters.getMaxAttempts().set(extension.getMaxAttempts());
             parameters.getDryRun().set(extension.getDryRun());
             parameters.getWorkDirectory().set(workDirectory(project));

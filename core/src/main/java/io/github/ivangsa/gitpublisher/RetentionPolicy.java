@@ -53,6 +53,25 @@ public record RetentionPolicy(int keepSnapshots, int keepVersions, URI releaseRe
         }
     }
 
+    /**
+     * Reads a user setting: blank means off ({@code null}), {@code central} (any case) is {@link #CENTRAL}, anything
+     * else a URI. The message never repeats the value (it may carry a secret by mistake).
+     */
+    public static URI parseReleaseRepository(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.equalsIgnoreCase("central")) {
+            return CENTRAL;
+        }
+        try {
+            return new URI(trimmed);
+        } catch (java.net.URISyntaxException e) {
+            throw new IllegalArgumentException("releaseRepository is not a valid URI");
+        }
+    }
+
     public RetentionPolicy withReleaseRepository(URI repository) {
         return new RetentionPolicy(keepSnapshots, keepVersions, repository);
     }

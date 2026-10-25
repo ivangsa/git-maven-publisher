@@ -43,6 +43,12 @@ public abstract class GitMavenPublisherExtension {
     /** Phase 3; {@code -1} keeps every version. */
     public abstract Property<Integer> getKeepVersions();
 
+    /**
+     * Phase 3, off when unset: {@code central} or an {@code https}/{@code file} URL of a Maven repository. A
+     * {@code -SNAPSHOT} version whose release POM exists there is deleted (D-106, D-107).
+     */
+    public abstract Property<String> getReleaseRepository();
+
     public abstract Property<Boolean> getAllowReleases();
 
     public abstract Property<Integer> getMaxAttempts();

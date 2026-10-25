@@ -43,6 +43,7 @@ class DeployMojoParametersTest {
         table.put("serverId", new String[] {"git-publisher.serverId", null});
         table.put("keepSnapshots", new String[] {"git-publisher.keepSnapshots", "3"});
         table.put("keepVersions", new String[] {"git-publisher.keepVersions", "-1"});
+        table.put("releaseRepository", new String[] {"git-publisher.releaseRepository", null});
         table.put("allowReleases", new String[] {"git-publisher.allowReleases", "false"});
         table.put("checksumAlgorithms", new String[] {"git-publisher.checksumAlgorithms", "SHA-1,MD5"});
         table.put("maxAttempts", new String[] {"git-publisher.maxAttempts", "5"});

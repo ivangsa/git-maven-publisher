@@ -223,4 +223,31 @@ class VersionRetentionTest {
                         () -> new RetentionPolicy(3, -1).withReleaseRepository(URI.create("https://u:p@example.org/m2")))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    // ---- R36 ----
+
+    @Test
+    void versionsPublishedNowAreNeverDroppedAndCountTowardTheLimit() throws Exception {
+        deploy("org.acme", "1.0", "2026-10-24T12:00:00Z"); // newest lastUpdated, not published now
+        deploy("org.acme", "2.0", "2026-10-24T10:00:00Z"); // published now, oldest lastUpdated
+        deploy("org.acme", "3.0", "2026-10-24T09:00:00Z"); // published now, oldest of all
+
+        Retention.apply(root, List.of(dir("2.0"), dir("3.0")), new RetentionPolicy(3, 2), ALGORITHMS);
+
+        // two touched versions fill N=2: every untouched version goes, the touched ones stay whatever their age
+        assertThat(directories()).containsExactlyInAnyOrder("2.0-SNAPSHOT", "3.0-SNAPSHOT");
+        assertThat(artifactMetadata().versions()).containsExactlyInAnyOrder("2.0-SNAPSHOT", "3.0-SNAPSHOT");
+        MetadataAssertions.assertValidRepository(root, CHECKSUMS);
+    }
+
+    @Test
+    void untouchedVersionsFillTheRoomLeftByTheTouchedOnes() throws Exception {
+        deploy("org.acme", "1.0", "2026-10-24T10:00:00Z");
+        deploy("org.acme", "2.0", "2026-10-24T11:00:00Z");
+        deploy("org.acme", "3.0", "2026-10-24T09:00:00Z"); // published now
+
+        Retention.apply(root, List.of(dir("3.0")), new RetentionPolicy(3, 2), ALGORITHMS);
+
+        assertThat(directories()).containsExactlyInAnyOrder("2.0-SNAPSHOT", "3.0-SNAPSHOT");
+    }
 }

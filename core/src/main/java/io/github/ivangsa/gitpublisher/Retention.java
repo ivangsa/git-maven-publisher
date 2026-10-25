@@ -60,6 +60,17 @@ final class Retention {
     static List<Path> apply(
             Path root, Iterable<Path> touchedVersionDirectories, RetentionPolicy policy, Set<ChecksumAlgorithm> checksums)
             throws IOException {
+        return apply(root, touchedVersionDirectories, policy, checksums, new ReleaseCheck(PublisherLog.silent()));
+    }
+
+    /** As above; {@code releaseCheck} is shared by the attempts of one publication so each answer is asked once. */
+    static List<Path> apply(
+            Path root,
+            Iterable<Path> touchedVersionDirectories,
+            RetentionPolicy policy,
+            Set<ChecksumAlgorithm> checksums,
+            ReleaseCheck releaseCheck)
+            throws IOException {
         List<Path> deleted = new ArrayList<>();
         Set<Path> seen = new HashSet<>();
         Set<Path> snapshotDirectories = new LinkedHashSet<>();
@@ -76,7 +87,7 @@ final class Retention {
         Set<Path> artifacts = new LinkedHashSet<>();
         snapshotDirectories.forEach(dir -> artifacts.add(dir.getParent()));
         for (Path artifact : artifacts) {
-            deleted.addAll(VersionRetention.apply(root, artifact, snapshotDirectories, policy, checksums));
+            deleted.addAll(VersionRetention.apply(root, artifact, snapshotDirectories, policy, checksums, releaseCheck));
         }
         deleted.sort(Comparator.naturalOrder());
         return deleted;

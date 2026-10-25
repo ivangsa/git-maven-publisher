@@ -35,7 +35,8 @@ The Gradle adapter is a separate Gradle build in `gradle-plugin/` (D-002), Phase
 | `nojekyll` | `git-publisher.nojekyll` | `false` | Writes an empty `.nojekyll` at the root on every publish, for users who serve the branch with GitHub Pages (D-043). |
 | `serverId` | `git-publisher.serverId` | none | `settings.xml` `<server>`; password = token, username defaults to `x-access-token`. Decrypted via `SettingsDecrypter`. |
 | `keepSnapshots` | `git-publisher.keepSnapshots` | `3` | ≥ 1 |
-| `keepVersions` | `git-publisher.keepVersions` | `-1` (unlimited) | Phase 3 |
+| `keepVersions` | `git-publisher.keepVersions` | `-1` (unlimited) | Phase 3. Versions published now are never dropped and count toward N (D-107). |
+| `releaseRepository` | `git-publisher.releaseRepository` | none (off) | Phase 3, release-aware cleanup (D-106, D-107). `central` or an `https`/`file` URL of a Maven repository; no credentials in the URL. |
 | `allowReleases` | `git-publisher.allowReleases` | `false` | Release version fails fast otherwise. |
 | `checksumAlgorithms` | `git-publisher.checksumAlgorithms` | `SHA-1,MD5` | Passed to Resolver (`aether.checksums.algorithms`). |
 | `maxAttempts` | `git-publisher.maxAttempts` | `5` | |
@@ -57,7 +58,7 @@ No token parameter or property: tokens never go on the command line or into the 
   without being in the set fails with an explanation; the set never grows.
 - **Configuration:** every non-skipped participant must resolve the same value for every setting except `skip` and
   `allowReleases`: `repository`, `branch`, `workDirectory`, `serverId` (the credentials source), `nojekyll`, `dryRun`,
-  `commitAuthor`, `keepSnapshots`, `keepVersions`, `checksumAlgorithms` and `maxAttempts`, because the single publication
+  `commitAuthor`, `keepSnapshots`, `keepVersions`, `releaseRepository`, `checksumAlgorithms` and `maxAttempts`, because the single publication
   uses one set of them. A mismatch fails the build before checkout and names the differing settings. A skipped
   participant checks in without settings and is not compared. Per-module `skip` is allowed.
 - **Repeated binding:** when one project binds `deploy` in several executions, each execution is its own participant (`g:a:v@executionId`) and the set completes only after all of them checked in; nothing is pushed while a later execution can still fail (D-082).
@@ -81,6 +82,7 @@ gitMavenPublisher {
     username = "x-access-token"                               // Property<String>
     keepSnapshots = 3                                         // Property<Int>
     keepVersions = -1                                         // Property<Int>, Phase 3
+    releaseRepository = "central"                             // Property<String>, optional, off when unset; "central" or an https/file URL (D-107)
     allowReleases = false
     maxAttempts = 5
     dryRun = false
@@ -125,7 +127,7 @@ record PublishConfig(
     Set<ChecksumAlgorithm> checksumAlgorithms) {}   // non-empty; default SHA-1, MD5; passed to Retention and IntegrityCheck (D-053)
 
 sealed interface Credentials { None, Token(String username, char[] token) }
-record RetentionPolicy(int keepSnapshots, int keepVersions) {}
+record RetentionPolicy(int keepSnapshots, int keepVersions, URI releaseRepository) {}   // releaseRepository null = off (D-106)
 record RetryPolicy(int maxAttempts, Duration baseDelay, Duration maxDelay) {}   // defaults 5, 500ms, 8s
 
 final class GitPublisher {
@@ -192,9 +194,10 @@ Runs per touched `g:a:v-SNAPSHOT` directory, inside the same commit.
   Builds are identified from file names, not from `<snapshotVersions>` (which only lists the current one per key).
 - Order builds by `(buildNumber, timestamp)`, newest first: Maven stamps the session start time, so a build that started earlier but deployed later has an older timestamp and a higher build number, and it is the one the metadata points at (D-025). Keep the first `keepSnapshots`, delete the rest.
 - Rewrite V-level metadata: drop `<snapshotVersion>` entries whose file was deleted. If the newest build is kept, `<snapshot>` is unchanged.
-- `keepVersions` (Phase 3): per touched `groupId:artifactId`, order `-SNAPSHOT` versions by V-level `lastUpdated`, delete the oldest directories beyond N, remove them from A-level `<versions>`, fix `latest`. Whole version directories go; sibling release directories and other files stay. A missing V-level `lastUpdated` counts as oldest.
-- Release-aware cleanup (Phase 3, opt-in, D-106): with a release repository configured (`RetentionPolicy.releaseRepository`, `https` or `file`; `RetentionPolicy.CENTRAL` is Maven Central), a touched artifact's `-SNAPSHOT` version `X-SNAPSHOT` is dropped, like above, when `<repo>/<groupPath>/<artifactId>/X/<artifactId>-X.pom` exists. The versions published now are never dropped for this. Any doubt (not found, error, timeout) keeps the version. Order: build retention, release cleanup, `keepVersions`.
-- Non-timestamped files are never deleted by retention.
+- `keepVersions` (Phase 3): per touched `groupId:artifactId`, keep N `-SNAPSHOT` versions. The versions published now (touched by this publication) are never dropped, whatever their `lastUpdated` (Maven stamps the session start, so a long build deployed last can rank oldest), and they count toward N. The other versions are ordered by V-level `lastUpdated`, newest first, and the oldest beyond the room left (`max(0, N - touched)`) are deleted, removed from A-level `<versions>`, and `latest` is fixed. When more than N versions are published at once, all of them stay and every other version goes. A missing V-level `lastUpdated` counts as oldest (D-107).
+- Release-aware cleanup (Phase 3, opt-in, D-106): with a release repository configured (`RetentionPolicy.releaseRepository`, `https` or `file`; `RetentionPolicy.CENTRAL` is Maven Central; the adapters accept `central` or a URL), a touched artifact's `-SNAPSHOT` version `X-SNAPSHOT` is dropped, like above, when `<repo>/<groupPath>/<artifactId>/X/<artifactId>-X.pom` exists. The versions published now are never dropped for this. Order: build retention, release cleanup, `keepVersions`.
+  "Exists" is defined precisely (D-107): for `file:` a regular file; for `https` a `HEAD` whose final answer, after following redirects, has status 200 and a content type that is not HTML (`text/html`, `application/xhtml+xml`). Anything else is doubt and keeps the version: 404, other statuses, an HTML page (login or landing pages), timeouts and errors. One HTTP client with the default proxy selector serves a publication and every answer is remembered across the retry attempts; a failure other than a plain 404 is logged once as a warning, without the URL's query.
+- Non-timestamped files are never deleted by *build* retention (`keepSnapshots`). `keepVersions` and release-aware cleanup remove whole version directories: the V-level `maven-metadata.xml` and its checksums, plain `artifactId-X-SNAPSHOT.jar` files and any file a user put inside the directory go with them. Loose files next to the version directories, release directories and the A-level metadata file stay.
 
 ## 7. Concurrency contract, retry and lease
 

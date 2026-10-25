@@ -17,12 +17,8 @@ package io.github.ivangsa.gitpublisher;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -44,7 +40,7 @@ final class VersionRetention {
 
     /**
      * @param artifactDirectory {@code <root>/<groupPath>/<artifactId>}
-     * @param touched the {@code -SNAPSHOT} directories published now; they are never dropped for having a release
+     * @param touched the {@code -SNAPSHOT} directories published now; they are never dropped (D-107)
      * @return the deleted files, relative to {@code root}
      */
     static List<Path> apply(
@@ -52,7 +48,8 @@ final class VersionRetention {
             Path artifactDirectory,
             Set<Path> touched,
             RetentionPolicy policy,
-            Set<ChecksumAlgorithm> checksums)
+            Set<ChecksumAlgorithm> checksums,
+            ReleaseCheck releaseCheck)
             throws IOException {
         boolean byRelease = policy.releaseRepository() != null;
         boolean byCount = policy.keepVersions() != RetentionPolicy.UNLIMITED;
@@ -66,7 +63,7 @@ final class VersionRetention {
             String artifactId = artifactDirectory.getFileName().toString();
             String groupPath = root.relativize(artifactDirectory.getParent()).toString().replace('\\', '/');
             for (Path version : versions) {
-                if (!touched.contains(version) && releaseExists(policy.releaseRepository(), groupPath, artifactId, version)) {
+                if (!touched.contains(version) && releaseExists(releaseCheck, policy.releaseRepository(), groupPath, artifactId, version)) {
                     drop.add(version);
                 }
             }
@@ -74,12 +71,16 @@ final class VersionRetention {
         if (byCount) {
             List<Path> remaining = new ArrayList<>(versions);
             remaining.removeAll(drop);
-            if (remaining.size() > policy.keepVersions()) {
-                // newest lastUpdated first; no lastUpdated counts as oldest; ties by name for a stable result
-                remaining.sort(Comparator.comparing(VersionRetention::lastUpdated)
+            // Versions published now are never dropped and count toward N (D-107); the others are ranked by
+            // lastUpdated, newest first (none counts as oldest, ties by name), and the oldest beyond N go.
+            List<Path> others = new ArrayList<>(remaining);
+            others.removeAll(touched);
+            int room = Math.max(0, policy.keepVersions() - (remaining.size() - others.size()));
+            if (others.size() > room) {
+                others.sort(Comparator.comparing(VersionRetention::lastUpdated)
                         .thenComparing(p -> p.getFileName().toString())
                         .reversed());
-                drop.addAll(remaining.subList(policy.keepVersions(), remaining.size()));
+                drop.addAll(others.subList(room, others.size()));
             }
         }
         if (drop.isEmpty()) {
@@ -138,34 +139,10 @@ final class VersionRetention {
         ChecksumWriter.write(file, checksums);
     }
 
-    /** Whether {@code <repo>/<groupPath>/<artifactId>/<base>/<artifactId>-<base>.pom} exists; any doubt means no. */
-    private static boolean releaseExists(URI repository, String groupPath, String artifactId, Path snapshotDirectory) {
+    private static boolean releaseExists(
+            ReleaseCheck check, URI repository, String groupPath, String artifactId, Path snapshotDirectory) {
         String version = snapshotDirectory.getFileName().toString();
         String base = version.substring(0, version.length() - SNAPSHOT_SUFFIX.length());
-        if (base.isEmpty()) {
-            return false;
-        }
-        String relative = groupPath + "/" + artifactId + "/" + base + "/" + artifactId + "-" + base + ".pom";
-        try {
-            String root = repository.toString();
-            URI target = URI.create(root.endsWith("/") ? root + relative : root + "/" + relative);
-            if ("file".equalsIgnoreCase(target.getScheme())) {
-                return Files.isRegularFile(Path.of(target));
-            }
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(10))
-                    .followRedirects(HttpClient.Redirect.NORMAL)
-                    .build();
-            HttpRequest request = HttpRequest.newBuilder(target)
-                    .method("HEAD", HttpRequest.BodyPublishers.noBody())
-                    .timeout(Duration.ofSeconds(15))
-                    .build();
-            return client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode() == 200;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
-        } catch (IOException | RuntimeException e) {
-            return false;
-        }
+        return !base.isEmpty() && check.exists(repository, groupPath, artifactId, base);
     }
 }

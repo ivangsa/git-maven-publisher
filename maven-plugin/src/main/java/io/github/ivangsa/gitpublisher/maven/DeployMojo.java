@@ -62,6 +62,10 @@ public class DeployMojo extends AbstractMojo {
     @Parameter(property = "git-publisher.keepVersions", defaultValue = "-1")
     int keepVersions;
 
+    /** Maven repository asked whether the release of a -SNAPSHOT version exists, so the snapshot is dropped: {@code central} or an https or file URL. Off when unset. */
+    @Parameter(property = "git-publisher.releaseRepository")
+    String releaseRepository;
+
     @Parameter(property = "git-publisher.allowReleases", defaultValue = "false")
     boolean allowReleases;
 
@@ -145,6 +149,7 @@ public class DeployMojo extends AbstractMojo {
                 serverId,
                 keepSnapshots,
                 keepVersions,
+                releaseRepository,
                 checksumAlgorithms,
                 maxAttempts,
                 workDirectory.toPath().toAbsolutePath().normalize(),

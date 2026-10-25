@@ -73,6 +73,8 @@ public abstract class GitPublisherService implements BuildService<GitPublisherSe
 
         Property<Integer> getKeepVersions();
 
+        Property<String> getReleaseRepository();
+
         Property<Integer> getMaxAttempts();
 
         Property<Boolean> getDryRun();
@@ -195,7 +197,9 @@ public abstract class GitPublisherService implements BuildService<GitPublisherSe
                     p.getBranch().get(),
                     credentials,
                     workDirectory,
-                    new RetentionPolicy(p.getKeepSnapshots().get(), p.getKeepVersions().get()),
+                    new RetentionPolicy(p.getKeepSnapshots().get(), p.getKeepVersions().get())
+                            .withReleaseRepository(
+                                    RetentionPolicy.parseReleaseRepository(p.getReleaseRepository().getOrNull())),
                     new RetryPolicy(
                             p.getMaxAttempts().get(),
                             RetryPolicy.defaults().baseDelay(),

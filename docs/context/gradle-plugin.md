@@ -9,7 +9,7 @@ Thin wrapper over the standard `maven-publish` plugin. Never generates artifacts
 
 ## Contract (design §2 Gradle, D-033)
 - Extension `gitMavenPublisher`: `repository`, `branch`, `token` (default env `GIT_PUBLISHER_TOKEN`, then Gradle
-  property `gitPublisherToken`), `username`=`x-access-token`, `keepSnapshots`, `keepVersions`, `allowReleases`,
+  property `gitPublisherToken`), `username`=`x-access-token`, `keepSnapshots`, `keepVersions`, `releaseRepository`, `allowReleases`,
   `maxAttempts`, `dryRun`. All `Property<>` types.
 - Registers Maven repository `gitPublisher` → `<rootBuildDir>/git-publisher/repo` (the core `repositoryDirectory()`).
 - Lifecycle: checkout runs once before any selected publication writes to the local repository. Push runs once, after every

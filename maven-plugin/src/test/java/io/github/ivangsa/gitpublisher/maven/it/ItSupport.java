@@ -221,6 +221,116 @@ public final class ItSupport {
         }
     }
 
+    /**
+     * Prebuild of the release-cleanup IT (R38): the remote already holds {@code 1.0-SNAPSHOT} (its release exists in a
+     * {@code file:} release repository) and {@code 1.5-SNAPSHOT} (no release); the plugin is pointed at the release
+     * repository with {@code -Dgit-publisher.releaseRepository}, as a user would.
+     */
+    public static void prebuildReleaseCleanup(File basedir) throws Exception {
+        // Hand-written seed: the Resolver cannot load in the invoker's script class loader (D-107)
+        String artifactId = basedir.getName();
+        java.util.Map<String, byte[]> files = new java.util.TreeMap<>();
+        seedSnapshot(files, artifactId, "1.0", "20261001.100000");
+        seedSnapshot(files, artifactId, "1.5", "20261002.100000");
+        String artifactMetadata = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <metadata>
+                  <groupId>%s</groupId>
+                  <artifactId>%s</artifactId>
+                  <versioning>
+                    <versions>
+                      <version>1.0-SNAPSHOT</version>
+                      <version>1.5-SNAPSHOT</version>
+                    </versions>
+                    <lastUpdated>20261002100000</lastUpdated>
+                  </versioning>
+                </metadata>
+                """.formatted(GROUP, artifactId);
+        putWithChecksums(files, "it/reactor/" + artifactId + "/maven-metadata.xml", artifactMetadata);
+        BareRepo.create(remote(basedir)).close();
+        try (BareRepo bare = bare(basedir)) {
+            bare.commitFiles(BRANCH, files, "seed");
+        }
+        Path releases = basedir.toPath().toAbsolutePath().resolveSibling(basedir.getName() + "-releases");
+        Path pom = releases.resolve("it/reactor/" + basedir.getName() + "/1.0/" + basedir.getName() + "-1.0.pom");
+        Files.createDirectories(pom.getParent());
+        Files.writeString(pom, "<project/>", StandardCharsets.UTF_8);
+        prebuild(basedir, remote(basedir).toUri().toString(), List.of("-Dgit-publisher.releaseRepository=" + releases.toUri()));
+    }
+
+    private static void seedSnapshot(java.util.Map<String, byte[]> files, String artifactId, String base, String timestamp) {
+        String directory = "it/reactor/" + artifactId + "/" + base + "-SNAPSHOT/";
+        String stem = artifactId + "-" + base + "-" + timestamp.substring(0, 8) + "." + timestamp.substring(9) + "-1";
+        putWithChecksums(files, directory + stem + ".jar", "jar " + base);
+        putWithChecksums(files, directory + stem + ".pom", "<project/>");
+        String metadata = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <metadata modelVersion="1.1.0">
+                  <groupId>%s</groupId>
+                  <artifactId>%s</artifactId>
+                  <version>%s-SNAPSHOT</version>
+                  <versioning>
+                    <snapshot>
+                      <timestamp>%s</timestamp>
+                      <buildNumber>1</buildNumber>
+                    </snapshot>
+                    <lastUpdated>%s</lastUpdated>
+                    <snapshotVersions>
+                      <snapshotVersion>
+                        <extension>jar</extension>
+                        <value>%s-%s-1</value>
+                        <updated>%s</updated>
+                      </snapshotVersion>
+                      <snapshotVersion>
+                        <extension>pom</extension>
+                        <value>%s-%s-1</value>
+                        <updated>%s</updated>
+                      </snapshotVersion>
+                    </snapshotVersions>
+                  </versioning>
+                </metadata>
+                """
+                .formatted(GROUP, artifactId, base, timestamp, timestamp.replace(".", ""), base, timestamp,
+                        timestamp.replace(".", ""), base, timestamp, timestamp.replace(".", ""));
+        putWithChecksums(files, directory + "maven-metadata.xml", metadata);
+    }
+
+    private static void putWithChecksums(java.util.Map<String, byte[]> files, String path, String content) {
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        files.put(path, bytes);
+        try {
+            files.put(path + ".sha1", hex("SHA-1", bytes));
+            files.put(path + ".md5", hex("MD5", bytes));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static byte[] hex(String algorithm, byte[] bytes) throws java.security.NoSuchAlgorithmException {
+        return java.util.HexFormat.of()
+                .formatHex(java.security.MessageDigest.getInstance(algorithm).digest(bytes))
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** The released {@code 1.0-SNAPSHOT} is gone from the branch and the metadata; the other versions stay. */
+    public static void assertReleaseCleanup(File basedir) {
+        String artifactId = basedir.getName();
+        String prefix = "it/reactor/" + artifactId + "/";
+        try (BareRepo bare = bare(basedir)) {
+            assertThat(bare.commitCount(BRANCH)).as("commits on " + BRANCH + " (one parentless commit, design section 4)").isEqualTo(1);
+            Set<String> files = bare.readTree(BRANCH).keySet();
+            assertThat(files).as("files of the released version").noneMatch(p -> p.startsWith(prefix + "1.0-SNAPSHOT/"));
+            assertThat(files).anyMatch(p -> p.startsWith(prefix + "1.5-SNAPSHOT/")).anyMatch(p -> p.startsWith(prefix + "3.0-SNAPSHOT/"));
+            String metadata = new String(bare.readTree(BRANCH).get(prefix + "maven-metadata.xml"), StandardCharsets.UTF_8);
+            assertThat(metadata)
+                    .doesNotContain("<version>1.0-SNAPSHOT</version>")
+                    .contains("<version>1.5-SNAPSHOT</version>")
+                    .contains("<version>3.0-SNAPSHOT</version>");
+            Path checkout = bare.checkout(BRANCH, basedir.toPath().resolveSibling(basedir.getName() + "-checkout"));
+            MetadataAssertions.assertValidRepository(checkout);
+        }
+    }
+
     /** Token that the invoker configuration puts into {@code GIT_PUBLISHER_TOKEN} for every IT. */
     public static final String ENV_TOKEN = "it-env-token-8c1f2b";
 

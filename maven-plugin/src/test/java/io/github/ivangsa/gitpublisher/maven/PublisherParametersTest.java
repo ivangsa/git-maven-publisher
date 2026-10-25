@@ -38,6 +38,7 @@ class PublisherParametersTest {
                 null,
                 3,
                 -1,
+                null,
                 "SHA-1,MD5",
                 5,
                 WORK,
@@ -54,6 +55,7 @@ class PublisherParametersTest {
                 "my-server",
                 7,
                 -1,
+                null,
                 "SHA-256, sha-1",
                 2,
                 WORK,
@@ -139,5 +141,20 @@ class PublisherParametersTest {
                 .isEqualTo(List.of("repository"));
         assertThat(a.differencesFrom(a.withBranch("x").withServerId("s")))
                 .containsExactlyInAnyOrder("branch", "serverId");
+    }
+
+    @Test
+    void theReleaseRepositoryIsOffByDefaultCentralByNameOrAUrlAndPartOfTheComparison() throws Exception {
+        PublisherParameters base = params("file:///tmp/remote.git");
+        assertThat(base.toConfig(Credentials.none()).retention().releaseRepository()).isNull();
+        assertThat(base.withReleaseRepository("Central").toConfig(Credentials.none()).retention().releaseRepository())
+                .isEqualTo(io.github.ivangsa.gitpublisher.RetentionPolicy.CENTRAL);
+        assertThat(base.withReleaseRepository("file:///tmp/releases/").toConfig(Credentials.none())
+                        .retention().releaseRepository().toString())
+                .isEqualTo("file:///tmp/releases/");
+        assertThat(base.differencesFrom(base.withReleaseRepository("central"))).isEqualTo(List.of("releaseRepository"));
+        assertThatThrownBy(() -> base.withReleaseRepository("http://example.org/m2").toConfig(Credentials.none()))
+                .isInstanceOf(MojoFailureException.class)
+                .hasMessageContaining("releaseRepository");
     }
 }

@@ -57,7 +57,7 @@ Every parameter has a user property `git-publisher.<name>`. Set them on the comm
 mvn deploy -Dgit-publisher.branch=snapshots -Dgit-publisher.checksumAlgorithms=SHA-256
 ```
 
-The repository is `git-publisher.repository` (required, `https` or `file` only, no credentials in the URL), for example `-Dgit-publisher.repository=https://github.com/<owner>/<snapshots-repo>.git`. The other parameters are `serverId`, `nojekyll`, `keepSnapshots` (default 3), `keepVersions`, `checksumAlgorithms` (default `SHA-1,MD5`), `maxAttempts`, `workDirectory`, `dryRun`, `skip`, `commitAuthor` and `allowReleases` (release versions fail unless set).
+The repository is `git-publisher.repository` (required, `https` or `file` only, no credentials in the URL), for example `-Dgit-publisher.repository=https://github.com/<owner>/<snapshots-repo>.git`. The other parameters are `serverId`, `nojekyll`, `keepSnapshots` (default 3), `keepVersions`, `releaseRepository`, `checksumAlgorithms` (default `SHA-1,MD5`), `maxAttempts`, `workDirectory`, `dryRun`, `skip`, `commitAuthor` and `allowReleases` (release versions fail unless set).
 
 ### Reactor builds
 
@@ -207,6 +207,8 @@ The workflow above does this with one `concurrency` group per snapshots reposito
 ## Retention and caches
 
 `keepSnapshots` (default 3) keeps that many builds of each `-SNAPSHOT` directory and deletes older ones. Consumers that cache metadata for a few minutes (raw.githubusercontent.com, the Pages CDN) can read metadata that names a deleted file until the cache expires. That needs more than `keepSnapshots` publications of one snapshot inside the cache window. This is an accepted risk of the MVP: each published tree is internally consistent, and there is no grace period.
+
+`keepVersions` (default unlimited) keeps that many `-SNAPSHOT` versions of each `groupId:artifactId` you publish and deletes the whole directories of the oldest others, ranked by their `lastUpdated`. A version published in the same run is never deleted and counts toward the limit. `releaseRepository` (Maven property `git-publisher.releaseRepository`, Gradle `releaseRepository`; off by default) deletes the `-SNAPSHOT` version `X-SNAPSHOT` once `<repository>/<groupPath>/<artifactId>/X/<artifactId>-X.pom` exists there. Set it to `central` for Maven Central, or to an `https` or `file` URL of another Maven repository (no credentials in the URL). Any doubt keeps the version: a missing file, an error, a timeout, or an HTML page (a login or landing page) all count as "not released", and a failure other than a plain 404 is logged once as a warning. Both options delete everything in the version directory, including files you added there.
 
 ## GitHub hosting limits
 

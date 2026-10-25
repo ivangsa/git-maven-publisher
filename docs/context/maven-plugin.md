@@ -19,7 +19,7 @@ Thin adapter. One goal `deploy`, default phase `deploy`. Users set `maven.deploy
 5. Checksums: session copy with `aether.checksums.algorithms` from `checksumAlgorithms` (default `SHA-1,MD5`).
 
 ## Parameters (design §2)
-`repository` (required), `branch`=gh-pages, `nojekyll`=false, `serverId`, `keepSnapshots`=3, `keepVersions`=-1, `allowReleases`=false,
+`repository` (required), `branch`=gh-pages, `nojekyll`=false, `serverId`, `keepSnapshots`=3, `keepVersions`=-1, `releaseRepository` (off), `allowReleases`=false,
 `checksumAlgorithms`, `maxAttempts`=5, `workDirectory`=`${session.executionRootDirectory}/target/git-publisher`,
 `dryRun`, `skip`, `commitAuthor`. All have a user property `git-publisher.<name>`.
 

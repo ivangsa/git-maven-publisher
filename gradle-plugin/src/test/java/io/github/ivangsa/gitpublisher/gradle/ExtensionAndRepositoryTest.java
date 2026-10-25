@@ -94,6 +94,7 @@ class ExtensionAndRepositoryTest {
                         println "username=" + e.username.get()
                         println "keepSnapshots=" + e.keepSnapshots.get()
                         println "keepVersions=" + e.keepVersions.get()
+                        println "releaseRepositoryPresent=" + e.releaseRepository.isPresent()
                         println "allowReleases=" + e.allowReleases.get()
                         println "maxAttempts=" + e.maxAttempts.get()
                         println "dryRun=" + e.dryRun.get()
@@ -106,7 +107,7 @@ class ExtensionAndRepositoryTest {
         String output = run("showDefaults", "-q").getOutput();
         for (String expected : new String[] {
             "branch=gh-pages", "nojekyll=false", "username=x-access-token", "keepSnapshots=3", "keepVersions=-1",
-            "allowReleases=false", "maxAttempts=5", "dryRun=false", "repositoryPresent=false"
+            "allowReleases=false", "maxAttempts=5", "dryRun=false", "repositoryPresent=false", "releaseRepositoryPresent=false"
         }) {
             assertTrue(output.contains(expected), expected + " missing in " + output);
         }

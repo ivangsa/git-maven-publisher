@@ -45,6 +45,7 @@ record PublisherParameters(
         String serverId,
         int keepSnapshots,
         int keepVersions,
+        String releaseRepository,
         String checksumAlgorithms,
         int maxAttempts,
         Path workDirectory,
@@ -57,32 +58,37 @@ record PublisherParameters(
     private static final Pattern AUTHOR = Pattern.compile("\\s*([^<>]+?)\\s*<\\s*([^<>\\s]+)\\s*>\\s*");
 
     PublisherParameters withBranch(String value) {
-        return new PublisherParameters(repository, value, nojekyll, serverId, keepSnapshots, keepVersions,
+        return new PublisherParameters(repository, value, nojekyll, serverId, keepSnapshots, keepVersions, releaseRepository,
                 checksumAlgorithms, maxAttempts, workDirectory, dryRun, commitAuthor);
     }
 
     PublisherParameters withServerId(String value) {
-        return new PublisherParameters(repository, branch, nojekyll, value, keepSnapshots, keepVersions,
+        return new PublisherParameters(repository, branch, nojekyll, value, keepSnapshots, keepVersions, releaseRepository,
+                checksumAlgorithms, maxAttempts, workDirectory, dryRun, commitAuthor);
+    }
+
+    PublisherParameters withReleaseRepository(String value) {
+        return new PublisherParameters(repository, branch, nojekyll, serverId, keepSnapshots, keepVersions, value,
                 checksumAlgorithms, maxAttempts, workDirectory, dryRun, commitAuthor);
     }
 
     PublisherParameters withKeepSnapshots(int value) {
-        return new PublisherParameters(repository, branch, nojekyll, serverId, value, keepVersions,
+        return new PublisherParameters(repository, branch, nojekyll, serverId, value, keepVersions, releaseRepository,
                 checksumAlgorithms, maxAttempts, workDirectory, dryRun, commitAuthor);
     }
 
     PublisherParameters withChecksumAlgorithms(String value) {
-        return new PublisherParameters(repository, branch, nojekyll, serverId, keepSnapshots, keepVersions,
+        return new PublisherParameters(repository, branch, nojekyll, serverId, keepSnapshots, keepVersions, releaseRepository,
                 value, maxAttempts, workDirectory, dryRun, commitAuthor);
     }
 
     PublisherParameters withMaxAttempts(int value) {
-        return new PublisherParameters(repository, branch, nojekyll, serverId, keepSnapshots, keepVersions,
+        return new PublisherParameters(repository, branch, nojekyll, serverId, keepSnapshots, keepVersions, releaseRepository,
                 checksumAlgorithms, value, workDirectory, dryRun, commitAuthor);
     }
 
     PublisherParameters withCommitAuthor(String value) {
-        return new PublisherParameters(repository, branch, nojekyll, serverId, keepSnapshots, keepVersions,
+        return new PublisherParameters(repository, branch, nojekyll, serverId, keepSnapshots, keepVersions, releaseRepository,
                 checksumAlgorithms, maxAttempts, workDirectory, dryRun, value);
     }
 
@@ -105,7 +111,8 @@ record PublisherParameters(
                     branch,
                     credentials,
                     workDirectory,
-                    new RetentionPolicy(keepSnapshots, keepVersions),
+                    new RetentionPolicy(keepSnapshots, keepVersions)
+                            .withReleaseRepository(RetentionPolicy.parseReleaseRepository(releaseRepository)),
                     new RetryPolicy(maxAttempts, defaults.baseDelay(), defaults.maxDelay()),
                     author(),
                     dryRun,
@@ -136,6 +143,9 @@ record PublisherParameters(
         }
         if (keepVersions != other.keepVersions) {
             differing.add("keepVersions");
+        }
+        if (!Objects.equals(blankToNull(releaseRepository), blankToNull(other.releaseRepository))) {
+            differing.add("releaseRepository");
         }
         if (!sameAlgorithms(other)) {
             differing.add("checksumAlgorithms");
