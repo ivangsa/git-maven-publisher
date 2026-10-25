@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP), except T45 [?] (Q12, Plugin Portal key) and R35 [?] (Q13, composite builds) · validation cadence D-092 · next: maintainer answers Q12/Q13, develop → main PR, T32b; then Phase 3 (B19)
+**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP), except T45 [?] (Q12, Plugin Portal key) and R35 [?] (Q13, composite builds) · validation cadence D-092 · next: maintainer answers Q12/Q13, develop → main PR, T32b; Phase 3: B19 done (T47, T48; adapters do not expose the release repository yet, D-106), next B20
 
 ## Batches
 
@@ -51,7 +51,7 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | BR10 | R28, R27, R30, R31 (line endings, Gradle release gate, docs, self-publication consumer; restores T44) | mechanic | gradle-plugin | yes (re-review of BR9, BR10) | done |
 | BR11 | R32 (late whenReady action after the success record; restores T36, R26) | implementer | gradle-plugin, testing | yes (re-review of BR11) | done |
 | BR12 | R33, R34 (record must be the last action, README late-action rule; R35 [?] Q13) | implementer (opus, escalation) | gradle-plugin, testing | yes (re-review of BR12) | done |
-| B19 | T47, T48 (retention) | implementer | core | yes (retention) | todo |
+| B19 | T47, T48 (retention) | implementer | core | yes (retention) | done |
 | B20 | T49 | implementer | maven-plugin, gradle-plugin | | todo |
 | B21 | T50, T51, T52 | mechanic | testing | yes (end of Phase 3) | todo (T51 needs Q7) |
 | manual | T33 | maintainer | - | | after T32b (self-publication part after the repo is public, D-074); not dispatched to an agent |
@@ -266,10 +266,10 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 
 ## Phase 3: hardening
 
-- [ ] T47 keepVersions
+- [x] T47 keepVersions
   Design §6.
   Done when: tests drop oldest snapshot versions per `groupId:artifactId` and A-level metadata passes `MetadataAssertions`.
-- [ ] T48 Release-aware cleanup
+- [x] T48 Release-aware cleanup
   Drop a `-SNAPSHOT` version once the release exists on a configurable release repo (default Central).
   Done when: IT against a fake release repo served from a `file://` directory (`PagesServer` was removed, D-043).
 - [ ] T49 verify goal and task

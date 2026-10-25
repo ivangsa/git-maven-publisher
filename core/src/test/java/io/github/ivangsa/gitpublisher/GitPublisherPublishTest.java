@@ -318,6 +318,43 @@ class GitPublisherPublishTest {
     }
 
     @Test
+    void keepVersionsAndReleaseCleanupRunBeforeTheCommit() throws Exception {
+        Path releases = Files.createDirectories(tmp.resolve("releases/org/acme/lib/1.0"));
+        Files.writeString(releases.resolve("lib-1.0.pom"), "<project/>");
+        RetentionPolicy policy = new RetentionPolicy(3, 2).withReleaseRepository(tmp.resolve("releases").toUri());
+        try (BareRepo remote = BareRepo.create(tmp.resolve("remote.git"))) {
+            for (String version : List.of("0.9", "1.0", "1.1", "1.2")) {
+                try (Publication publication =
+                        new GitPublisher(config(remote.uri(), policy, false), LOG).checkout()) {
+                    try (var deployer = new io.github.ivangsa.gitpublisher.fixtures.ResolverDeployer(
+                            publication.repositoryDirectory(),
+                            java.time.Instant.parse("2026-10-24T10:00:00Z").plusSeconds(60L * List.of("0.9", "1.0", "1.1", "1.2").indexOf(version)),
+                            "SHA-1",
+                            "MD5")) {
+                        deployer.deployJavaProject("org.acme", "lib", version + "-SNAPSHOT");
+                    }
+                    PublishResult result = publication.publish(INFO);
+                    assertThat(result.pushed()).isTrue();
+                }
+            }
+            Path checkout = tmp.resolve("check");
+            Map<String, byte[]> tree = remote.readTree(BRANCH);
+            for (Map.Entry<String, byte[]> e : tree.entrySet()) {
+                Path file = checkout.resolve(e.getKey());
+                Files.createDirectories(file.getParent());
+                Files.write(file, e.getValue());
+            }
+            assertThat(tree.keySet())
+                    .noneMatch(k -> k.startsWith("org/acme/lib/1.0-SNAPSHOT/"))
+                    .noneMatch(k -> k.startsWith("org/acme/lib/0.9-SNAPSHOT/"))
+                    .anyMatch(k -> k.startsWith("org/acme/lib/1.1-SNAPSHOT/"))
+                    .anyMatch(k -> k.startsWith("org/acme/lib/1.2-SNAPSHOT/"));
+            io.github.ivangsa.gitpublisher.fixtures.MetadataAssertions.assertValidRepository(
+                    checkout, java.util.Set.of("sha1", "md5"));
+        }
+    }
+
+    @Test
     void aTreeThatBreaksAnInvariantIsNeverPushed() throws Exception {
         try (BareRepo remote = BareRepo.create(tmp.resolve("remote.git"))) {
             ObjectId tip = remote.commitFiles(BRANCH, Map.of("a.txt", new byte[] {1}), "first");

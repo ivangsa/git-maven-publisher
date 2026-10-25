@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,11 +62,21 @@ final class Retention {
             throws IOException {
         List<Path> deleted = new ArrayList<>();
         Set<Path> seen = new HashSet<>();
+        Set<Path> snapshotDirectories = new LinkedHashSet<>();
         for (Path touched : touchedVersionDirectories) {
             Path dir = root.resolve(touched).normalize();
             if (seen.add(dir) && Files.isDirectory(dir)) {
                 deleted.addAll(applyTo(root, dir, policy.keepSnapshots(), checksums));
+                if (dir.getFileName().toString().endsWith(SNAPSHOT_SUFFIX) && dir.getParent() != null) {
+                    snapshotDirectories.add(dir);
+                }
             }
+        }
+        // then per touched groupId:artifactId: release-aware cleanup and keepVersions (design section 6)
+        Set<Path> artifacts = new LinkedHashSet<>();
+        snapshotDirectories.forEach(dir -> artifacts.add(dir.getParent()));
+        for (Path artifact : artifacts) {
+            deleted.addAll(VersionRetention.apply(root, artifact, snapshotDirectories, policy, checksums));
         }
         deleted.sort(Comparator.naturalOrder());
         return deleted;

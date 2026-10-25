@@ -192,7 +192,8 @@ Runs per touched `g:a:v-SNAPSHOT` directory, inside the same commit.
   Builds are identified from file names, not from `<snapshotVersions>` (which only lists the current one per key).
 - Order builds by `(buildNumber, timestamp)`, newest first: Maven stamps the session start time, so a build that started earlier but deployed later has an older timestamp and a higher build number, and it is the one the metadata points at (D-025). Keep the first `keepSnapshots`, delete the rest.
 - Rewrite V-level metadata: drop `<snapshotVersion>` entries whose file was deleted. If the newest build is kept, `<snapshot>` is unchanged.
-- `keepVersions` (Phase 3): per touched `groupId:artifactId`, order `-SNAPSHOT` versions by V-level `lastUpdated`, delete the oldest directories beyond N, remove them from A-level `<versions>`, fix `latest`.
+- `keepVersions` (Phase 3): per touched `groupId:artifactId`, order `-SNAPSHOT` versions by V-level `lastUpdated`, delete the oldest directories beyond N, remove them from A-level `<versions>`, fix `latest`. Whole version directories go; sibling release directories and other files stay. A missing V-level `lastUpdated` counts as oldest.
+- Release-aware cleanup (Phase 3, opt-in, D-106): with a release repository configured (`RetentionPolicy.releaseRepository`, `https` or `file`; `RetentionPolicy.CENTRAL` is Maven Central), a touched artifact's `-SNAPSHOT` version `X-SNAPSHOT` is dropped, like above, when `<repo>/<groupPath>/<artifactId>/X/<artifactId>-X.pom` exists. The versions published now are never dropped for this. Any doubt (not found, error, timeout) keeps the version. Order: build retention, release cleanup, `keepVersions`.
 - Non-timestamped files are never deleted by retention.
 
 ## 7. Concurrency contract, retry and lease
