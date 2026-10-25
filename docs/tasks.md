@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · BR17 failed review verification (R43/R46), fixed by BR18 (D-113) · next: develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111); re-review 2026-10-25-a3707d0 FIX FIRST: R43-R45 done (BR17, BR18); re-review 2026-10-25-4de4033 FIX FIRST: R47 fixed by BR19 (D-114); snapshots now on zenwave360/maven-snapshots `main` via GitHub Pages (D-115); re-review 2026-10-25-5dc5581 FIX FIRST: R48-R50 fixed by BR20 (D-116), BR20 re-review pending before B20
+**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · BR17 failed review verification (R43/R46), fixed by BR18 (D-113) · next: develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111); re-review 2026-10-25-a3707d0 FIX FIRST: R43-R45 done (BR17, BR18); re-review 2026-10-25-4de4033 FIX FIRST: R47 fixed by BR19 (D-114); snapshots now on zenwave360/maven-snapshots `main` via GitHub Pages (D-115); re-review 2026-10-25-5dc5581 FIX FIRST: R48-R50 fixed by BR20 (D-116); re-review 2026-10-25-37cb292 FIX FIRST: R50 failed verification, R51 open before B20
 
 ## Batches
 
@@ -538,7 +538,16 @@ Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R48Releas
   D-115 serves this project's snapshots through Pages from `main`, but neither the Maven deploy step nor `gradle-plugin/self-publish.init.gradle` enables `nojekyll`; the branch has no `.nojekyll`.
   Set `-Dgit-publisher.nojekyll=true` and `nojekyll = true`, or record in D-115 why Jekyll runs on the branch.
   Done when: both publish commands enable `nojekyll` (or D-115 records the reason), `actionlint` passes, and the full build passes.
-- [x] R50 D-115 revises D-083's "never `main`" rule explicitly (minor, bookkeeping, F3)
+- [!] R50 D-115 revises D-083's "never `main`" rule explicitly (minor, bookkeeping, F3) (failed verification: [review 2026-10-25-37cb292](reviews/2026-10-25-37cb292.md), F1; finished by R51)
   Mark D-083 (branch, "never `main`"), D-102 (clone of `gh-pages`, raw URL) and D-111 (branch `gh-pages`) as revised by D-115; record that replacing `main`'s history is accepted.
   Fix "Never main." in `.github/workflows/publish-maven-snapshots.yml` (header) and the branch/URL in the T60 text.
   Done when: no document or workflow comment says this project publishes to `gh-pages` or never to `main`, and the full build passes.
+
+From [review 2026-10-25-37cb292](reviews/2026-10-25-37cb292.md) (re-review of BR20, verdict FIX FIRST). Documentation only, no review test.
+
+- [ ] R51 The D-115 revision notes name the right URL and cover every stale decision (minor, bookkeeping, F1, F2)
+  The D-111 note (`docs/decisions.md:964`) names `https://www.zenwave.io/maven-snapshots/` (a 404 site); use `https://www.zenwave360.io/maven-snapshots/`.
+  Mark D-084 (consumer URL, line 698) and D-112's R44 bullet (raw URL in README, test resource and consumer, line 986) as revised by D-115.
+  Reword D-116's R50 bullet: every publication force-pushes a parentless commit (design §4), not only the first, and D-115 does not record the acceptance; record it.
+  Reword D-116's R49 sentence about release-workflows (it does not invoke git-maven-publisher): say what keeps `.nojekyll` on the branch.
+  Done when: no decision outside a "Revised by"/history note says this project is published to `gh-pages` or consumed from raw.githubusercontent.com or `www.zenwave.io`, R50 is ticked again, and the full build passes.
