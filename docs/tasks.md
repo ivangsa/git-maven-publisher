@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP), except T45 [?] (Q12, Plugin Portal key) and R35 [?] (Q13, composite builds) · validation cadence D-092 · next: maintainer answers Q12/Q13, develop → main PR, T32b; Phase 3: B19 done (T47, T48; adapters do not expose the release repository yet, D-106), next B20
+**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP), except T45 [?] (Q12, Plugin Portal key) and R35 [?] (Q13, composite builds) · validation cadence D-092 · next: maintainer answers Q12/Q13, develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST: R36-R40 before B20
 
 ## Batches
 
@@ -441,3 +441,27 @@ Review test: `gradle-plugin/src/test/java/io/github/ivangsa/gitpublisher/gradle/
   An included build's failed participant does not stop the root build's push (two services, two pushes). Ask the maintainer in docs/questions.md; record the
   answer in design section 2, decisions and README; if one publication per invocation, make the push fail closed across included builds with a TestKit test.
   Done when: the decision is recorded and, if behaviour changes, its test passes with the full build.
+
+From [review 2026-10-25-250f684](reviews/2026-10-25-250f684.md) (Phase 3 retention, B19, verdict FIX FIRST). All before B20.
+Review tests: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R36KeepVersionsKeepsTheVersionJustPublishedReviewTest.java`,
+`core/src/test/java/io/github/ivangsa/gitpublisher/review/R37ReleaseCheckOverHttpsReviewTest.java`.
+
+- [ ] R36 keepVersions never drops a version touched by this publication (major, F1)
+  Maven's V-level `lastUpdated` is the session start, so a long build deployed last can rank oldest and its own version is deleted, then pushed.
+  Touched versions are always kept and count toward N; only untouched versions, ranked by `lastUpdated`, are dropped. Update design §6 and D-106.
+  Done when: `R36KeepVersionsKeepsTheVersionJustPublishedReviewTest` and `VersionRetentionTest` pass and the full build passes.
+- [ ] R37 The https release check treats a redirect to an HTML page as doubt (minor, F3)
+  `followRedirects(NORMAL)` plus "final status 200" makes a login/landing page look like a release POM. Keep following redirects (CDNs), but a final
+  `text/html` response keeps the version. Record in decisions (the https branch now has a test; D-043's reason does not apply to our own client).
+  Done when: `R37ReleaseCheckOverHttpsReviewTest` passes and the full build passes.
+- [ ] R38 Maven and Gradle expose the release repository (major, F2)
+  Maven `git-publisher.releaseRepository`, Gradle `releaseRepository` (URI, off by default; Central available by name or URL), passed to `RetentionPolicy`,
+  part of the per-build consistency checks (`PublisherParameters` differing list, Gradle shared-service parameters), README entry. Closes the D-106 gap.
+  Done when: an invoker IT and a TestKit test drop a released `-SNAPSHOT` version against a `file://` release repository, and the full build passes.
+- [ ] R39 Release check: one client, default proxy, answers kept across attempts, a warning on failure (minor, F4)
+  One `HttpClient` per `Retention.apply` with `ProxySelector.getDefault()`; remember answers per version for the attempts of one publication; one warning
+  (URL without query) when a check fails for a reason other than 404.
+  Done when: a unit test shows a second attempt makes no new check for the same version, and the full build passes.
+- [ ] R40 Design §6 wording: whole-directory drops (minor, F5)
+  "Non-timestamped files are never deleted by retention" applies to build retention only; keepVersions and release cleanup delete whole version directories.
+  Done when: design §6 updated.
