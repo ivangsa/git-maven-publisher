@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · BR17 failed review verification (R43/R46), fixed by BR18 (D-113) · next: develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111); re-review 2026-10-25-a3707d0 FIX FIRST: R43-R45 done (BR17, BR18); re-review 2026-10-25-4de4033 FIX FIRST: R47 fixed by BR19 (D-114); snapshots now on zenwave360/maven-snapshots `main` via GitHub Pages (D-115); BR19 re-review pending before B20
+**Status:** Phase 1 done and reviewed; repo public; T61 branch model on (agents push to `develop`) · Phase 2 done on `develop` (B15-B18b, fix batches BR9-BR12; final re-review 2026-10-25-87257db: SHIP); T45 redefined and done by BR16 (Gradle plugin and marker to Maven Central, snapshot dogfood; Q12 closed, D-111), R35 done by BR16 (Q13 answered: one publication per build), T51 dropped (Q7: releases on demand) · validation cadence D-092 · BR17 failed review verification (R43/R46), fixed by BR18 (D-113) · next: develop → main PR, T32b; Phase 3: B19 done (T47, T48), review 2026-10-25-250f684 FIX FIRST, fixed by BR13 (R36-R40, D-107); R41 fixed by BR14 (D-108, T01 restored); re-review 2026-10-25-20d7325 FIX FIRST: R42 fixed by BR15 (D-109), BR15 re-review pending before B20; BL1 done (license switched to MIT, D-110); BR16 done (D-111); re-review 2026-10-25-a3707d0 FIX FIRST: R43-R45 done (BR17, BR18); re-review 2026-10-25-4de4033 FIX FIRST: R47 fixed by BR19 (D-114); snapshots now on zenwave360/maven-snapshots `main` via GitHub Pages (D-115); re-review 2026-10-25-5dc5581 FIX FIRST: R48-R50 open before B20
 
 ## Batches
 
@@ -525,3 +525,19 @@ Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R47Releas
   `org/acme;rc/lib/1.0/lib-1.0.pom`, the server answers the POM of `org.acme:lib:1.0`, and the unreleased `1.0-SNAPSHOT` of `org.acme;rc` is deleted.
   Quote `;` as `%3B` in every segment, or answer "no" without a request for a segment containing it; correct D-113's "exactly one segment" claim.
   Done when: `R47ReleaseCheckPathParameterReviewTest`, R43 and R46 pass, then the full build passes.
+
+From [review 2026-10-25-5dc5581](reviews/2026-10-25-5dc5581.md) (re-review of BR19, verdict FIX FIRST).
+Review test: `core/src/test/java/io/github/ivangsa/gitpublisher/review/R48ReleaseCheckPlusSignReviewTest.java`.
+
+- [ ] R48 The release check quotes `+` so an S3/CloudFront release repository is asked for the right key (minor, F1)
+  S3 decodes a literal `+` in the path as a space, so `1.0+build` asks for `.../1.0 build/lib-1.0 build.pom`, gets 404 and the released snapshot is kept forever.
+  Quote `+` as `%2B` in every segment (like `;`, D-114) and correct D-114's claim that only `;` has a path meaning on common servers.
+  Done when: `R48ReleaseCheckPlusSignReviewTest`, R43, R46 and R47 pass, then the full build passes.
+- [ ] R49 The self-publication writes `.nojekyll`, as the README tells Pages users (minor, F2)
+  D-115 serves this project's snapshots through Pages from `main`, but neither the Maven deploy step nor `gradle-plugin/self-publish.init.gradle` enables `nojekyll`; the branch has no `.nojekyll`.
+  Set `-Dgit-publisher.nojekyll=true` and `nojekyll = true`, or record in D-115 why Jekyll runs on the branch.
+  Done when: both publish commands enable `nojekyll` (or D-115 records the reason), `actionlint` passes, and the full build passes.
+- [ ] R50 D-115 revises D-083's "never `main`" rule explicitly (minor, bookkeeping, F3)
+  Mark D-083 (branch, "never `main`"), D-102 (clone of `gh-pages`, raw URL) and D-111 (branch `gh-pages`) as revised by D-115; record that replacing `main`'s history is accepted.
+  Fix "Never main." in `.github/workflows/publish-maven-snapshots.yml` (header) and the branch/URL in the T60 text.
+  Done when: no document or workflow comment says this project publishes to `gh-pages` or never to `main`, and the full build passes.
