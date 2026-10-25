@@ -20,11 +20,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.gradle.api.Action;
+import org.gradle.api.Describable;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -118,14 +120,16 @@ public class GitMavenPublisherPlugin implements Plugin<Project> {
                     .collect(Collectors.toList());
             checkSettingsAgree(project, extension);
             // One record per participant, however many projects applied the plugin (each runs this callback). It is added
-            // after every action known now and remembers how many actions the task then has; when it runs it records
-            // nothing unless the task still has exactly that many, so an action added after it, by any later callback or
-            // plugin, leaves the participant unrecorded and the push is refused (R26, R32, D-103).
+            // after every action known now, under a name unique to this build, and remembers how many actions the task
+            // then has. When it runs it records only if Gradle itself runs it, unwrapped, as the last action of the task
+            // with that count; otherwise the participant stays unrecorded and the push is refused (R26, R32, R33, D-104).
             Set<String> recorded = recordedParticipants(project);
             for (PublishToMavenRepository task : participants) {
                 if (recorded.add(task.getPath())) {
                     int expected = task.getActions().size() + 1;
-                    task.doLast(new RecordSuccess(service, task.getPath(), expected));
+                    RecordSuccess record = new RecordSuccess(
+                            service, task.getPath(), expected, RecordSuccess.name(task.getPath()));
+                    task.doLast(record.getDisplayName(), record);
                 }
             }
             if (!extension.getAllowReleases().get()) {
@@ -238,34 +242,100 @@ public class GitMavenPublisherPlugin implements Plugin<Project> {
     }
 
     /**
-     * Records that a participant completed, fail closed. A task that failed or was skipped never reaches it. It also
-     * records nothing when the task does not have exactly the number of actions it had when this record was added as
-     * its last action: an action added afterwards (a later {@code whenReady}, an execution-time {@code doLast}, ...) has
-     * not run yet and could still fail, so the outcome of the task is not known. The participant then stays unrecorded
-     * and the push is refused (D-098). The check does not depend on the order in which callbacks were registered.
+     * Records that a participant completed, fail closed (D-104). A task that failed or was skipped never reaches it. When
+     * it runs it records only if all of these hold, otherwise it records nothing and the push is refused (D-098):
+     *
+     * <ul>
+     *   <li>the task has exactly the number of actions it had when this record was added as its last action;
+     *   <li>the last element of {@link Task#getActions()} carries this record's name (a {@link Describable} display name
+     *       unique to this build), and no other element does;
+     *   <li>every caller on the stack above {@link #execute} is Gradle or the JDK: no build script, plugin or wrapper
+     *       code called it, so Gradle's executor runs it directly as a task action, and the only action that carries it
+     *       is the last one.
+     * </ul>
+     *
+     * Together: nothing of the task can run after the record, so the task completed when it records.
      */
-    static final class RecordSuccess implements Action<Task> {
+    static final class RecordSuccess implements Action<Task>, Describable {
+        private static final String NAME_PREFIX = "git-maven-publisher success record of ";
+        private static final List<String> TRUSTED_CALLERS = List.of("org.gradle.", "java.", "jdk.", "sun.");
+
         private final Provider<GitPublisherService> service;
         private final String taskPath;
         private final int expectedActions;
+        private final String name;
 
-        RecordSuccess(Provider<GitPublisherService> service, String taskPath, int expectedActions) {
+        RecordSuccess(Provider<GitPublisherService> service, String taskPath, int expectedActions, String name) {
             this.service = service;
             this.taskPath = taskPath;
             this.expectedActions = expectedActions;
+            this.name = name;
+        }
+
+        /** Unique to this build: a later callback cannot have known it when its own action was created. */
+        static String name(String taskPath) {
+            return NAME_PREFIX + taskPath + " " + UUID.randomUUID();
+        }
+
+        @Override
+        public String getDisplayName() {
+            return name;
         }
 
         @Override
         public void execute(Task task) {
-            int actual = task.getActions().size();
-            if (actual != expectedActions) {
-                LOGGER.warn("git-maven-publisher: " + taskPath + " has " + (actual - expectedActions)
-                        + " action(s) that run after the publication record (or fewer actions than expected), so its"
-                        + " outcome is not known and it is not recorded as successful; nothing will be pushed."
-                        + " Do not add actions to publication tasks after the task graph is ready.");
+            String problem = problem(task.getActions());
+            if (problem != null) {
+                LOGGER.warn("git-maven-publisher: " + taskPath + " is not recorded as successful because " + problem
+                        + ". Its outcome is not known, so nothing will be pushed."
+                        + " Do not add, remove, replace or wrap actions of publication tasks after the task graph is ready.");
                 return;
             }
             service.get().recordSuccess(taskPath);
+        }
+
+        private String problem(List<? extends Action<? super Task>> actions) {
+            int actual = actions.size();
+            if (actual != expectedActions) {
+                return "it has " + actual + " actions instead of " + expectedActions
+                        + " (an action was added or removed after the publication record)";
+            }
+            int carriers = 0;
+            for (Action<? super Task> action : actions) {
+                if (carriesThisRecord(action)) {
+                    carriers++;
+                }
+            }
+            if (carriers != 1 || !carriesThisRecord(actions.get(actual - 1))) {
+                return "the publication record is not its last action (the action list was changed after the task graph"
+                        + " was ready)";
+            }
+            String caller = untrustedCaller();
+            if (caller != null) {
+                return "the publication record was called by " + caller + ", not by Gradle (it was wrapped or called"
+                        + " from another action)";
+            }
+            return null;
+        }
+
+        private boolean carriesThisRecord(Action<? super Task> action) {
+            if (!(action instanceof Describable)) {
+                return false;
+            }
+            String displayName = ((Describable) action).getDisplayName();
+            return name.equals(displayName) || ("Execute " + name).equals(displayName);
+        }
+
+        /** The first stack frame above {@link #execute} whose class is not Gradle's or the JDK's, or null. */
+        private static String untrustedCaller() {
+            String self = RecordSuccess.class.getName();
+            return StackWalker.getInstance().walk(frames -> frames
+                    .dropWhile(frame -> !(frame.getClassName().equals(self) && frame.getMethodName().equals("execute")))
+                    .dropWhile(frame -> frame.getClassName().equals(self))
+                    .map(StackWalker.StackFrame::getClassName)
+                    .filter(className -> TRUSTED_CALLERS.stream().noneMatch(className::startsWith))
+                    .findFirst()
+                    .orElse(null));
         }
     }
 

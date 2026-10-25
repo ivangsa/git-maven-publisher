@@ -106,6 +106,8 @@ The task publishes what the build publishes to the repository `gitPublisher`, as
 
 A publication task that Gradle skips (`onlyIf { false }`, `enabled = false`) or that does not complete means that nothing is pushed, and the build fails naming the task: a refused push is not reported as success. This differs from Maven, where `skip=true` marks a module as not taking part. To publish only some publications, run just those tasks (or exclude a task with `-x`, which removes it from the publication).
 
+Do not change the actions of a publication task after the task graph is ready (for example in `gradle.taskGraph.whenReady`, or from another task while the build runs): do not add, remove, replace or wrap them. The plugin records a publication as complete only when its own action runs last and directly from Gradle, so after such a change it cannot know that the task completed. Any such change, even an action that succeeds, fails the build and nothing is pushed; the log names the task. Add actions while configuring the task (`tasks.named(...) { doLast { ... } }`), which is supported.
+
 Set the token as described in [Authentication](#authentication). Do not write it into the build script: a value set there is stored with the build configuration. On Gradle 8.x, prefer the environment variable to a `-P` property: Gradle stores every `-P` value in the configuration cache entry (see Authentication).
 
 ## Authentication
