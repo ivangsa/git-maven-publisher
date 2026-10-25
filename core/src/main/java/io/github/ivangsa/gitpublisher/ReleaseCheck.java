@@ -8,6 +8,7 @@ package io.github.ivangsa.gitpublisher;
 import java.io.IOException;
 import java.net.ProxySelector;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -25,7 +26,7 @@ import java.util.Map;
  *
  * <p>"Exists" means: for {@code file:} a regular file; for {@code https} a final answer (redirects are followed) of
  * status 200 whose content type is not HTML. Everything else is doubt and means no: other statuses, an HTML page
- * (login or landing pages), timeouts, errors, and names that are not plain path segments (R43, D-112). A failure other than a plain 404 is logged once, without the query.
+ * (login or landing pages), timeouts, errors, and names that cannot be one path segment (R43, R46, D-113; every name is percent-encoded). A failure other than a plain 404 is logged once, without the query.
  */
 final class ReleaseCheck {
 
@@ -43,19 +44,25 @@ final class ReleaseCheck {
     }
 
     boolean exists(URI repository, String groupPath, String artifactId, String base) {
-        if (!plainPath(groupPath) || !plainSegment(artifactId) || !plainSegment(base)) {
-            return false; // doubt (R43, D-112): never build a URL from a name that is not a plain path segment
-        }
-        String relative = groupPath + "/" + artifactId + "/" + base + "/" + artifactId + "-" + base + ".pom";
-        URI target;
         if (repository.getRawQuery() != null || repository.getRawFragment() != null) {
             return false; // RetentionPolicy rejects these (D-109); never ask the root in place of the POM
         }
+        URI target;
         try {
-            String root = repository.toString();
-            target = URI.create(root.endsWith("/") ? root + relative : root + "/" + relative);
-        } catch (RuntimeException e) {
-            return false;
+            if (groupPath == null || groupPath.isEmpty()) {
+                return false;
+            }
+            StringBuilder relative = new StringBuilder();
+            for (String part : groupPath.split("/", -1)) {
+                relative.append(encode(part)).append('/');
+            }
+            String file = artifactId + "-" + base + ".pom";
+            relative.append(encode(artifactId)).append('/').append(encode(base)).append('/').append(encode(file));
+            String root = repository.toASCIIString();
+            target = new URI(
+                    URI.create(root.endsWith("/") ? root + relative : root + "/" + relative).toASCIIString());
+        } catch (IllegalArgumentException | URISyntaxException e) {
+            return false; // doubt (R46, D-113): a name that cannot be one path segment
         }
         Boolean known = answers.get(target);
         if (known != null) {
@@ -66,24 +73,27 @@ final class ReleaseCheck {
         return answer;
     }
 
-    private static boolean plainPath(String path) {
-        if (path == null || path.isEmpty()) {
-            return false;
+    /**
+     * Percent-encodes one name as exactly one path segment (R46, D-113) through the URI constructor, which quotes
+     * every character not allowed in a path (including {@code ?}, {@code #} and {@code %}). Empty names, {@code .},
+     * {@code ..}, names with {@code /} or {@code \} and control characters are doubt: {@link IllegalArgumentException}.
+     */
+    private static String encode(String segment) {
+        if (segment == null || segment.isEmpty() || segment.equals(".") || segment.equals("..")) {
+            throw new IllegalArgumentException("not a path segment");
         }
-        for (String segment : path.split("/", -1)) {
-            if (!plainSegment(segment)) {
-                return false;
+        for (int i = 0; i < segment.length(); i++) {
+            char c = segment.charAt(i);
+            if (c == '/' || c == '\\' || Character.isISOControl(c)) {
+                throw new IllegalArgumentException("not a path segment");
             }
         }
-        return true;
-    }
-
-    /** A plain path segment: letters, digits and {@code . _ + ~ -}; not empty, not {@code .} or {@code ..}. */
-    private static boolean plainSegment(String segment) {
-        return segment != null
-                && !segment.equals(".")
-                && !segment.equals("..")
-                && segment.matches("[A-Za-z0-9._+~-]+");
+        try {
+            String raw = new URI(null, null, "/" + segment, null).getRawPath();
+            return raw.substring(1);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     private boolean ask(URI target) {
