@@ -32,7 +32,7 @@ jobs:
       - name: Build and test (no Docker needed)
         run: ./mvnw -B verify
 
-  # Invoker ITs (src/it) run inside `verify` with the Maven that runs the build (D-012).
+  # Invoker ITs (maven-plugin/src/it) run inside `verify` with the Maven that runs the build (D-012).
   # The wrapper pins 3.10.x; this matrix runs the latest 3.10.x and the latest Maven 4.0 from Maven Central.
   maven-matrix:
     name: verify (Maven ${{ matrix.maven }})

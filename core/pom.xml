@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 Ivan Garcia Sainz-Aja
+  Licensed under the Apache License, Version 2.0 (the "License");
+  see the LICENSE file in the project root.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.ivangsa</groupId>
+    <artifactId>git-maven-publisher-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>git-maven-publisher-core</artifactId>
+  <name>git-maven-publisher core</name>
+  <description>Publication logic of git-maven-publisher: JGit and JDK only, no Maven or Gradle API (D-075).</description>
+  <!-- Central requires these in every published POM; repeated here because the raw POM file is what gets uploaded (T32a). -->
+  <url>https://github.com/ivangsa/git-maven-publisher</url>
+  <licenses>
+    <license>
+      <name>The Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>ivangsa</id>
+      <name>Ivan Garcia Sainz-Aja</name>
+      <url>https://github.com/ivangsa</url>
+    </developer>
+  </developers>
+  <scm>
+    <url>https://github.com/ivangsa/git-maven-publisher</url>
+    <connection>scm:git:https://github.com/ivangsa/git-maven-publisher.git</connection>
+    <developerConnection>scm:git:https://github.com/ivangsa/git-maven-publisher.git</developerConnection>
+    <tag>HEAD</tag>
+  </scm>
+
+  <dependencies>
+    <!-- Core runtime dependency (D-005). Package io.github.ivangsa.gitpublisher; the architecture test enforces the rule. -->
+    <dependency>
+      <groupId>org.eclipse.jgit</groupId>
+      <artifactId>org.eclipse.jgit</artifactId>
+      <version>${jgit.version}</version>
+    </dependency>
+    <!-- Harness and oracles (test scope only). Test-fixtures does not depend on core, so there is no cycle. -->
+    <dependency>
+      <groupId>io.github.ivangsa</groupId>
+      <artifactId>git-maven-publisher-test-fixtures</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- JGit's HTTP server and Jetty, for the HTTPS and token tests of core. -->
+    <dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-server</artifactId>
+      <version>${jetty.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jgit</groupId>
+      <artifactId>org.eclipse.jgit.http.server</artifactId>
+      <version>${jgit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty.ee10</groupId>
+      <artifactId>jetty-ee10-servlet</artifactId>
+      <version>${jetty.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-nop</artifactId>
+      <version>${slf4j.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

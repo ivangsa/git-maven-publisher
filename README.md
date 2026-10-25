@@ -8,7 +8,7 @@ Status: early development (0.1.0-SNAPSHOT). No release yet. Design and plan live
 
 Run `./mvnw verify`. Requires JDK 17 or newer. The default build needs no Docker. CI runs the build on JDK 17 and 21, and the invoker ITs also on Maven 3.10.0 and Maven 4.0.0-rc-7.
 
-The project is one Maven module, `git-maven-publisher-maven-plugin` (packaging `maven-plugin`). The test harness and golden files live under `src/test`; the Maven invoker ITs live under `src/it`.
+The project is a Maven reactor (parent `git-maven-publisher-parent`) with three modules: `core` (`git-maven-publisher-core`, publication logic), `maven-plugin` (`git-maven-publisher-maven-plugin`, packaging `maven-plugin`; the Maven invoker ITs live under `maven-plugin/src/it`) and `test-fixtures` (the test harness and golden files, never deployed). Run the build from the root.
 
 ## Publish from Maven
 
@@ -119,6 +119,8 @@ jobs:
         run: ./mvnw -B deploy -Dgit-publisher.repository=https://github.com/${{ github.repository }}.git -Dgit-publisher.branch=snapshots
 ```
 
+This file is copied from the integration test `readme-workflow`, which builds and deploys the same project layout; the workflow itself is not run by the build and is checked as a workflow file by `actionlint` (task T50).
+
 ### External users with a fine-grained PAT
 
 To publish to another repository, create a fine-grained personal access token from an account that can write to the snapshots repository, select that repository only, and grant `Contents: Read and write`. Give it an expiry date: the publication fails with an authentication error once the token expires, and the fix is a new token. Store it as a secret of the publishing repository and pass it as `GIT_PUBLISHER_TOKEN` (see the workflow above), or keep it in `settings.xml` with an encrypted password and select the server with `-Dgit-publisher.serverId=snapshots-server`:
@@ -128,14 +130,14 @@ To publish to another repository, create a fine-grained personal access token fr
   <servers>
     <server>
       <id>snapshots-server</id>
-      <!-- encrypted with the master password in settings-security.xml; the token is ItSupport.SERVER_TOKEN -->
+      <!-- an encrypted token; replace it with your own -->
       <password>{RndOaLhHnTsHBKJQlvzAfZ/npMlKIHgkOePT3U8nhAnc7eISwNCPbyQUQFFjz93s}</password>
     </server>
   </servers>
 </settings>
 ```
 
-The password is encrypted with the master password in `~/.m2/settings-security.xml`. Maven 3.10 creates both with `mvn --encrypt-master-password` and `mvn --encrypt-password`. Maven 4 uses its own scheme (`mvn --enc`); the legacy encrypted passwords it can still read need `-Dsettings.security` to name the master file.
+The password is encrypted with the master password in `~/.m2/settings-security.xml`. Maven 3.10 creates both with `mvn --encrypt-master-password` and `mvn --encrypt-password`. Maven 4 uses its own scheme (`mvn --enc`) and can still read legacy encrypted passwords. If the master password file is not at the default location, name it with `-Dsettings.security=<path>`; this plugin's own integration tests do that. The `<password>` above is an example value that those tests decrypt, not a secret: use your own.
 
 ## Serving the branch
 

@@ -92,7 +92,7 @@ d="2026-10-24T09:05:00+02:00"; GIT_AUTHOR_DATE="$d" GIT_COMMITTER_DATE="$d" git 
 
 ## Build
 
-- Full build: `./mvnw verify` (one Maven project, `maven-plugin` packaging, D-037), then `./gradlew -p gradle-plugin build` once the Gradle build exists (Phase 2).
+- Full build: `./mvnw verify` from the root (Maven reactor: `test-fixtures`, `core`, `maven-plugin`, D-075), then `./mvnw install` and `./gradlew -p gradle-plugin build` once the Gradle build exists (Phase 2).
 - No Docker, no Testcontainers (D-038).
 - On Windows, run commands through Git Bash.
 

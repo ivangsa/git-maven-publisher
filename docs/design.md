@@ -5,21 +5,24 @@ Changes go here first, with a matching entry in `docs/decisions.md`.
 
 ## 1. Build and layout
 
-One Maven project, packaging `maven-plugin`, artifact `io.github.ivangsa:git-maven-publisher-maven-plugin` (D-037).
-The Gradle adapter is a separate Gradle build in `gradle-plugin/` (D-002), Phase 2.
+A Maven reactor (D-075, revises D-037) rooted at `pom.xml`, parent `io.github.ivangsa:git-maven-publisher-parent`, with four modules:
+`test-fixtures`, `core`, `maven-plugin`. Parent, core and Maven plugin are published; `test-fixtures` is never deployed.
+The Gradle adapter is a separate Gradle build in `gradle-plugin/` (D-002), Phase 2, which depends on the published `git-maven-publisher-core` (D-075).
 
 | Part | Location | Notes |
 | --- | --- | --- |
-| Publication logic ("core") | `src/main/java/io/github/ivangsa/gitpublisher/` | JGit + JDK only. No `org.apache.maven` or `org.gradle` imports, enforced by an architecture test. |
-| Maven adapter | `src/main/java/io/github/ivangsa/gitpublisher/maven/` | Mojo, reactor collector. Maven API and Resolver API `provided`. |
-| Test helpers (harness) | `src/test/java/io/github/ivangsa/gitpublisher/fixtures/` | Bare repos, sequential reference, tree diff, consumers, interleaved publish scenarios. |
-| Golden files | `src/test/resources/golden/` | Source URL + fetch date in `golden/README.md`. |
-| Plugin ITs | `src/it/` | `maven-invoker-plugin`; verify scripts use the harness through `addTestClassPath`. |
-| Gradle adapter | `gradle-plugin/` | Own wrapper. How it reuses the core packages is open (Q10), decided before Phase 2. |
+| Parent POM | `pom.xml` | Artifact `git-maven-publisher-parent` (packaging `pom`): versions, shared plugins, license check, POM metadata. |
+| Publication logic ("core") | `core/src/main/java/io/github/ivangsa/gitpublisher/` | Artifact `git-maven-publisher-core`. JGit + JDK only. No `org.apache.maven` or `org.gradle` imports, enforced by an architecture test in `core/src/test`. |
+| Maven adapter | `maven-plugin/src/main/java/io/github/ivangsa/gitpublisher/maven/` | Artifact `git-maven-publisher-maven-plugin` (packaging `maven-plugin`). Mojo, reactor collector. Maven API and Resolver API `provided`. |
+| Test helpers (harness) | `test-fixtures/src/main/java/io/github/ivangsa/gitpublisher/fixtures/` | Bare repos, sequential reference, tree diff, consumers, interleaved publish scenarios. Self-tests in `test-fixtures/src/test`. Not deployed (`maven.deploy.skip`) and not in any release bundle. |
+| Golden files | `test-fixtures/src/main/resources/golden/` | Source URL + fetch date in `golden/README.md`. |
+| Plugin ITs | `maven-plugin/src/it/` | `maven-invoker-plugin`; verify scripts use the harness through `addTestClassPath`. |
+| Gradle adapter | `gradle-plugin/` | Own wrapper; depends on `git-maven-publisher-core` (D-075). |
 
+- Dependencies follow the module that uses them: core has JGit at compile scope; test-fixtures has JGit and the Maven oracles; the Maven plugin has the Maven API `provided`. Test-fixtures never depends on core, so the reactor has no cycle.
 - Maven Wrapper pinned to 3.10.x. `--release 17`, any JDK ≥ 17 can build. JUnit 5, AssertJ.
-- Full build = `./mvnw verify`, plus `./gradlew -p gradle-plugin build` once the Gradle build exists. No Docker needed.
-- One artifact is published for the MVP.
+- Full build = `./mvnw verify` from the root (all modules, all unit tests, ITs and invoker ITs), plus `./mvnw install` and `./gradlew -p gradle-plugin build` once the Gradle build exists. No Docker needed.
+- Three artifacts are published for the first release (T32a): parent, core and Maven plugin.
 
 ## 2. Public configuration
 
@@ -48,9 +51,15 @@ No token parameter or property: tokens never go on the command line or into the 
 
 - **Participants:** projects in `session.getProjects()` (the reactor after `-pl`/`-am`/`-rf` filtering) whose effective model,
   with active profiles, binds this plugin's `deploy` goal. Every participant checks in when its execution runs, including
-  with `skip=true` (it checks in with nothing to publish). A project that does not bind the goal is not a participant.
-- **Configuration:** every participant must resolve the same `repository`, `branch`, `workDirectory` and credentials source.
-  A mismatch fails the build before checkout. Per-module `skip` is allowed.
+  with `skip=true` (it checks in with nothing to publish). A project that does not bind the goal is not a participant,
+  except when no project in the session binds it (the goal was started from the command line, `mvn ...:deploy`): then
+  Maven runs it in every project of the session and every project is a participant (D-063). A project that runs the goal
+  without being in the set fails with an explanation; the set never grows.
+- **Configuration:** every non-skipped participant must resolve the same value for every setting except `skip` and
+  `allowReleases`: `repository`, `branch`, `workDirectory`, `serverId` (the credentials source), `nojekyll`, `dryRun`,
+  `commitAuthor`, `keepSnapshots`, `keepVersions`, `checksumAlgorithms` and `maxAttempts`, because the single publication
+  uses one set of them. A mismatch fails the build before checkout and names the differing settings. A skipped
+  participant checks in without settings and is not compared. Per-module `skip` is allowed.
 - **Trigger:** the participant that completes the set runs checkout → one `RepositorySystem.deploy` of everything collected →
   publish. Thread-safe under `-T`: completion is a counter over the participant set, not reactor order.
 - **Guarantee:** push happens only after every participating execution completed successfully. If a participant fails
@@ -150,7 +159,7 @@ No `.git` inside the served tree, no URL or credentials written to any Git confi
    3. `IntegrityCheck` (§5). Violation = bug → fail, never push.
    4. Build tree from `repo/` (DirCache + ObjectInserter), commit with **no parents**, message:
       `Publish <coords...>` + blank line + `source: <sha>`.
-   5. Push `RemoteRefUpdate(force=true, expectedOldObjectId = expectedSha or zeroId)`, together with a second update that force-moves `refs/publisher/tree` to the new root tree, **without a lease** (`expectedOldObjectId` unset). The tree ref is a transfer hint, not a lease: without it JGit resends the whole tree for a parentless commit (D-020). The push is **atomic** (`Transport.setPushAtomic`), so a branch update rejected by the lease moves no ref and the hint never points at a failed publication; if the server does not support atomic pushes the hint is skipped (D-060). Only the branch status decides (D-027). A branch status other than OK, UP_TO_DATE or the lease failure (protected branch, hook, size limit, non-fast-forward denial) is a permanent refusal: fail fast with the remote's reason and the hint that the branch must allow force pushes (D-060).
+   5. Push `RemoteRefUpdate(force=true, expectedOldObjectId = expectedSha or zeroId)`, together with a second update that force-moves `refs/publisher/tree` to the new root tree, **without a lease** (`expectedOldObjectId` unset). The tree ref is a transfer hint, not a lease: without it JGit resends the whole tree for a parentless commit (D-020). The push is **atomic** (`Transport.setPushAtomic`), so a branch update rejected by the lease moves no ref and the hint never points at a failed publication; if the server does not support atomic pushes the hint is skipped (D-060). Only the branch status decides (D-027): when the atomic push is refused for a reason other than the lease (for example the remote refuses the hint ref and aborts the transaction), the branch is pushed again alone with the same lease, and the hint is left for a later publication (D-068). A branch status other than OK, UP_TO_DATE or the lease failure (protected branch, hook, size limit, non-fast-forward denial) is a permanent refusal: fail fast with the remote's reason and the hint that the branch must allow force pushes (D-060).
    6. Branch update `OK` → done, whatever the status of the tree ref (it may be missing, stale or rejected, for example when the branch was created by hand; the next push repairs it). Branch `REJECTED_REMOTE_CHANGED` / lease failure → back-off, re-fetch, `OverlayReplay` (§7), go to 3.ii.
       Transport `IOException` → back-off and retry within the same budget. Auth failure → fail fast. Replay conflict → fail fast (§7).
 
@@ -247,7 +256,7 @@ independent metadata oracle. The native deploy tools are.
 | --- | --- | --- |
 | **Sequential reference** (primary) | Expected tree = the same publications deployed one after another by the native tool (Maven Resolver; Gradle `maven-publish` in Phase 2) into a clean `file://` repo. Actual tree = the same output transported through Git (separate checkouts, failed lease, overlay replay of independent changes). `TreeNormalizer` replaces timestamps, build numbers (by order), `lastUpdated`/`updated`; `TreeDiff` must report no difference. This is a comparison of direct Resolver output with output through Git, not a repository-manager oracle. | `fixtures` (`SequentialReference`, `TreeNormalizer`, `TreeDiff`), ITs |
 | **Real Maven Resolver** (`maven-resolver-supplier-mvn3`, test scope) | Produces artifacts and metadata exactly like `mvn deploy`; one deployer is one session with one `maven.startTime` (settable, D-026). Used as the "native deploy" in core tests and to build the sequential reference. | `fixtures` |
-| **Golden files** from Maven Central and public snapshot repos | Parser round-trip and retention on real-world shapes, incl. a KMP library (`.module`, many artifactIds). | `src/test/resources/golden` |
+| **Golden files** from Maven Central and public snapshot repos | Parser round-trip and retention on real-world shapes, incl. a KMP library (`.module`, many artifactIds). | `test-fixtures/src/main/resources/golden` |
 | **Clean consumers** | Plain Maven project (Maven Verifier, empty local repo) and Gradle KMP project (TestKit) resolve from a `file://` URL pointing at a working tree checked out from the pushed branch, i.e. exactly what any static file server would serve (D-043). | `fixtures` (`MavenConsumer`), plugin ITs |
 | **Real Git** | Lease, retry and replay against bare repos on disk and JGit's HTTP server. | ITs |
 | **Interleaving** | Deterministic: publisher A checks out, publisher B publishes in full, then A pushes (D-044). Distinct coordinates → A's lease fails, A replays, both publications on the branch, invariants hold. Shared path → A fails with a conflict, B's files untouched. A push without a lease is caught losing B's files. | `fixtures` (`InterleavedPublishScenario`), ITs |
@@ -256,7 +265,7 @@ independent metadata oracle. The native deploy tools are.
 
 Do not replace any of these with a fake repository manager or synthetic artifacts that reproduce our own assumptions.
 
-Levels: unit (`*Test`, surefire), integration (`*IT`, failsafe), plugin ITs (`maven-invoker-plugin` in `src/it`, Gradle TestKit), nightly E2E against a real GitHub repository.
+Levels: unit (`*Test`, surefire), integration (`*IT`, failsafe), plugin ITs (`maven-invoker-plugin` in `maven-plugin/src/it`, Gradle TestKit), nightly E2E against a real GitHub repository.
 The default build runs everything. No `@Disabled`, no skipped tests in a passing build.
 
 ## 10. Operational limits (D-036)

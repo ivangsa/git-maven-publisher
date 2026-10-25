@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 Ivan Garcia Sainz-Aja
+  Licensed under the Apache License, Version 2.0 (the "License");
+  see the LICENSE file in the project root.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.ivangsa</groupId>
+    <artifactId>git-maven-publisher-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>git-maven-publisher-maven-plugin</artifactId>
+  <packaging>maven-plugin</packaging>
+
+  <name>git-maven-publisher Maven plugin</name>
+  <description>Maven plugin that publishes deployed artifacts to a Git branch.</description>
+  <!-- Central requires these in every published POM; repeated here because the raw POM file is what gets uploaded (T32a). -->
+  <url>https://github.com/ivangsa/git-maven-publisher</url>
+  <licenses>
+    <license>
+      <name>The Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>ivangsa</id>
+      <name>Ivan Garcia Sainz-Aja</name>
+      <url>https://github.com/ivangsa</url>
+    </developer>
+  </developers>
+  <scm>
+    <url>https://github.com/ivangsa/git-maven-publisher</url>
+    <connection>scm:git:https://github.com/ivangsa/git-maven-publisher.git</connection>
+    <developerConnection>scm:git:https://github.com/ivangsa/git-maven-publisher.git</developerConnection>
+    <tag>HEAD</tag>
+  </scm>
+
+  <dependencies>
+    <!-- Publication logic (package io.github.ivangsa.gitpublisher) comes from core. -->
+    <dependency>
+      <groupId>io.github.ivangsa</groupId>
+      <artifactId>git-maven-publisher-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- Maven adapter (io.github.ivangsa.gitpublisher.maven): Maven API and Resolver API come from the running Maven. -->
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-plugin-api</artifactId>
+      <version>${maven.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-core</artifactId>
+      <version>${maven.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-settings-builder</artifactId>
+      <version>${maven.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-api</artifactId>
+      <version>${maven-resolver.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.plugin-tools</groupId>
+      <artifactId>maven-plugin-annotations</artifactId>
+      <version>${maven-plugin-plugin.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Harness and oracles (test scope only). -->
+    <dependency>
+      <groupId>io.github.ivangsa</groupId>
+      <artifactId>git-maven-publisher-test-fixtures</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Jetty and JGit's HTTP server for the plugin ITs (ItServer). -->
+    <dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-server</artifactId>
+      <version>${jetty.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jgit</groupId>
+      <artifactId>org.eclipse.jgit.http.server</artifactId>
+      <version>${jgit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty.ee10</groupId>
+      <artifactId>jetty-ee10-servlet</artifactId>
+      <version>${jetty.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-nop</artifactId>
+      <version>${slf4j.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-plugin-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <!--
+          Plugin ITs (src/it): real user projects built by the Maven that runs this build, with this plugin installed
+          into an isolated local repository. prebuild/verify scripts are one-liners into the harness
+          (src/test/java/.../maven/it); addTestClassPath puts the harness on their classpath.
+          Paths are absolute: the reactor runs from the root, not from this module.
+        -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-invoker-plugin</artifactId>
+        <version>${maven-invoker-plugin.version}</version>
+        <configuration>
+          <projectsDirectory>${project.basedir}/src/it</projectsDirectory>
+          <cloneProjectsTo>${project.build.directory}/it</cloneProjectsTo>
+          <localRepositoryPath>${project.build.directory}/local-repo</localRepositoryPath>
+          <pomIncludes>
+            <pomInclude>*/pom.xml</pomInclude>
+          </pomIncludes>
+          <addTestClassPath>true</addTestClassPath>
+          <streamLogsOnFailures>true</streamLogsOnFailures>
+          <!-- one settings.xml for all ITs: the encrypted server of the serverId IT (the invoker would hide any other -s) -->
+          <settingsFile>${project.basedir}/src/it/settings.xml</settingsFile>
+          <!--
+            Maven 4 fails the whole settings build when it cannot decrypt a legacy password, even in ITs that do not use
+            it; the legacy master password file must be named for every forked build (D-066 records why).
+          -->
+          <mavenOpts>-Dsettings.security=${project.basedir}/src/it/settings-security.xml</mavenOpts>
+          <preBuildHookScript>prebuild</preBuildHookScript>
+          <postBuildHookScript>verify</postBuildHookScript>
+          <environmentVariables>
+            <!-- ItSupport.ENV_TOKEN: the token source of the HTTPS ITs that use the environment -->
+            <GIT_PUBLISHER_TOKEN>it-env-token-8c1f2b</GIT_PUBLISHER_TOKEN>
+          </environmentVariables>
+        </configuration>
+        <executions>
+          <execution>
+            <id>integration-test</id>
+            <goals>
+              <goal>install</goal>
+              <goal>run</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

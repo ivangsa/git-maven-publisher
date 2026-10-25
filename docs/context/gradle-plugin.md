@@ -2,7 +2,7 @@
 
 **Module:** `gradle-plugin/` · plugin id `io.github.ivangsa.git-maven-publisher` · **separate Gradle build**
 with its own wrapper (D-002) · `java-gradle-plugin` · Gradle: latest 8.x and 9.x (D-012).
-How it reuses the core packages of the Maven project is **Q10**, decided before T34. Do not assume a published core artifact.
+It depends on the published artifact `git-maven-publisher-core` (D-075, answers Q10). CI runs `./mvnw install` before `./gradlew -p gradle-plugin build`.
 
 ## Purpose
 Thin wrapper over the standard `maven-publish` plugin. Never generates artifacts or metadata itself.
@@ -34,5 +34,5 @@ one selected subproject publishes; `--configuration-cache` reuse keeps all of th
 Maven + Gradle (distinct coordinates) into one repo. CI matrix over supported Gradle versions.
 
 ## Files that matter
-`docs/design.md` §2 (Gradle), §3, §7, `docs/decisions.md` D-002, D-033, D-037, `docs/questions.md` Q10, `gradle-plugin/`,
+`docs/design.md` §2 (Gradle), §3, §7, `docs/decisions.md` D-002, D-033, D-075, D-076, `gradle-plugin/`,
 core API in `docs/context/core.md`, harness in `docs/context/testing.md`.

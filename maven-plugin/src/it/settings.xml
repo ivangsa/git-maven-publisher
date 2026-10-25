@@ -1,0 +1,9 @@
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0">
+  <servers>
+    <server>
+      <id>snapshots-server</id>
+      <!-- an encrypted token; replace it with your own -->
+      <password>{RndOaLhHnTsHBKJQlvzAfZ/npMlKIHgkOePT3U8nhAnc7eISwNCPbyQUQFFjz93s}</password>
+    </server>
+  </servers>
+</settings>

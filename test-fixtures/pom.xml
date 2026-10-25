@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 Ivan Garcia Sainz-Aja
+  Licensed under the Apache License, Version 2.0 (the "License");
+  see the LICENSE file in the project root.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.ivangsa</groupId>
+    <artifactId>git-maven-publisher-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>git-maven-publisher-test-fixtures</artifactId>
+  <name>git-maven-publisher test fixtures</name>
+  <description>Test harness and oracles of git-maven-publisher. Not deployed and not part of any release bundle (D-075).</description>
+
+  <properties>
+    <!-- D-075: the harness is never published. Core and maven-plugin use it at test scope only. -->
+    <maven.deploy.skip>true</maven.deploy.skip>
+    <!-- and never in the Central bundle of the release profile (D-072): skipPublishing leaves the module out of it -->
+    <central.skipPublishing>true</central.skipPublishing>
+  </properties>
+
+  <dependencies>
+    <!-- The harness uses JGit directly (BareRepo, MetadataAssertions, consumers). It does not depend on core. -->
+    <dependency>
+      <groupId>org.eclipse.jgit</groupId>
+      <artifactId>org.eclipse.jgit</artifactId>
+      <version>${jgit.version}</version>
+    </dependency>
+    <!-- Oracles: Maven's metadata reader, real Resolver deploys, Maven Verifier for the clean consumers. -->
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-repository-metadata</artifactId>
+      <version>${maven-repository-metadata.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-supplier-mvn3</artifactId>
+      <version>${maven-resolver.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.shared</groupId>
+      <artifactId>maven-verifier</artifactId>
+      <version>${maven-verifier.version}</version>
+    </dependency>
+    <!-- Maven Verifier (MavenConsumer) forks the running Maven; its settings classes are needed at test time. -->
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-settings-builder</artifactId>
+      <version>${maven.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Test-only tools of the harness (its own self-tests, JGit's HTTP server, logging). -->
+    <dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-server</artifactId>
+      <version>${jetty.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jgit</groupId>
+      <artifactId>org.eclipse.jgit.http.server</artifactId>
+      <version>${jgit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty.ee10</groupId>
+      <artifactId>jetty-ee10-servlet</artifactId>
+      <version>${jetty.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-nop</artifactId>
+      <version>${slf4j.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

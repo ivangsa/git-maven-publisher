@@ -9,14 +9,17 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <!-- One Maven project, one published artifact (D-037). Test harness, oracles and ITs are not published. -->
+  <!--
+    Reactor parent (D-075, revises D-037). Modules: core (publication logic, published), maven-plugin (published),
+    test-fixtures (harness and golden files, never deployed). The parent is published too: Central requires it.
+  -->
   <groupId>io.github.ivangsa</groupId>
-  <artifactId>git-maven-publisher-maven-plugin</artifactId>
+  <artifactId>git-maven-publisher-parent</artifactId>
   <version>0.1.0-SNAPSHOT</version>
-  <packaging>maven-plugin</packaging>
+  <packaging>pom</packaging>
 
-  <name>git-maven-publisher Maven plugin</name>
-  <description>Maven plugin that publishes deployed artifacts to a Git branch.</description>
+  <name>git-maven-publisher parent</name>
+  <description>Turns a Git repository into a Maven snapshot repository served as static files.</description>
   <url>https://github.com/ivangsa/git-maven-publisher</url>
   <inceptionYear>2026</inceptionYear>
 
@@ -42,6 +45,12 @@
     <developerConnection>scm:git:https://github.com/ivangsa/git-maven-publisher.git</developerConnection>
     <tag>HEAD</tag>
   </scm>
+
+  <modules>
+    <module>test-fixtures</module>
+    <module>core</module>
+    <module>maven-plugin</module>
+  </modules>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -70,6 +79,16 @@
     <maven-plugin-plugin.version>3.15.1</maven-plugin-plugin.version>
     <license-maven-plugin.version>5.1.2</license-maven-plugin.version>
     <maven-invoker-plugin.version>3.9.1</maven-invoker-plugin.version>
+
+    <!-- Release profile only (T32a, D-072): sources, javadoc, signatures, Central bundle. -->
+    <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
+    <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
+    <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
+    <central-publishing-maven-plugin.version>0.12.0</central-publishing-maven-plugin.version>
+    <!-- true: build the Central bundle, do not upload it (central-publishing-maven-plugin skipUpload) -->
+    <central.skipUpload>false</central.skipUpload>
+    <!-- true in a module: its artifacts are left out of the bundle altogether (central-publishing-maven-plugin skipPublishing) -->
+    <central.skipPublishing>false</central.skipPublishing>
   </properties>
 
   <dependencyManagement>
@@ -89,6 +108,7 @@
     </dependencies>
   </dependencyManagement>
 
+  <!-- Test scope for every module. Production and harness dependencies are declared by the module that uses them. -->
   <dependencies>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -98,92 +118,6 @@
     <dependency>
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <!-- Test harness and oracles (src/test/java/.../fixtures), test scope. -->
-    <dependency>
-      <groupId>org.apache.maven</groupId>
-      <artifactId>maven-repository-metadata</artifactId>
-      <version>${maven-repository-metadata.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.maven.resolver</groupId>
-      <artifactId>maven-resolver-supplier-mvn3</artifactId>
-      <version>${maven-resolver.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.maven.shared</groupId>
-      <artifactId>maven-verifier</artifactId>
-      <version>${maven-verifier.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.maven</groupId>
-      <artifactId>maven-settings-builder</artifactId>
-      <version>${maven.version}</version>
-      <scope>provided</scope>
-    </dependency>
-    <!-- Maven adapter (io.github.ivangsa.gitpublisher.maven): Maven API and Resolver API come from the running Maven. -->
-    <dependency>
-      <groupId>org.apache.maven</groupId>
-      <artifactId>maven-plugin-api</artifactId>
-      <version>${maven.version}</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.maven</groupId>
-      <artifactId>maven-core</artifactId>
-      <version>${maven.version}</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.maven.resolver</groupId>
-      <artifactId>maven-resolver-api</artifactId>
-      <version>${maven-resolver.version}</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.maven.plugin-tools</groupId>
-      <artifactId>maven-plugin-annotations</artifactId>
-      <version>${maven-plugin-plugin.version}</version>
-      <scope>provided</scope>
-    </dependency>
-    <!-- Core runtime dependency (D-005, D-037). -->
-    <dependency>
-      <groupId>org.eclipse.jgit</groupId>
-      <artifactId>org.eclipse.jgit</artifactId>
-      <version>${jgit.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.eclipse.jetty</groupId>
-      <artifactId>jetty-server</artifactId>
-      <version>${jetty.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.eclipse.jgit</groupId>
-      <artifactId>org.eclipse.jgit.http.server</artifactId>
-      <version>${jgit.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.eclipse.jetty.ee10</groupId>
-      <artifactId>jetty-ee10-servlet</artifactId>
-      <version>${jetty.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-nop</artifactId>
-      <version>${slf4j.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
-      <artifactId>jackson-databind</artifactId>
-      <version>${jackson.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -242,10 +176,6 @@
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-plugin-plugin</artifactId>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
           <systemPropertyVariables>
@@ -267,48 +197,6 @@
         </executions>
       </plugin>
       <plugin>
-        <!--
-          Plugin ITs (src/it): real user projects built by the Maven that runs this build, with this plugin installed
-          into an isolated local repository. prebuild/verify scripts are one-liners into the harness
-          (src/test/java/.../maven/it); addTestClassPath puts the harness on their classpath.
-        -->
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-invoker-plugin</artifactId>
-        <version>${maven-invoker-plugin.version}</version>
-        <configuration>
-          <projectsDirectory>src/it</projectsDirectory>
-          <cloneProjectsTo>${project.build.directory}/it</cloneProjectsTo>
-          <localRepositoryPath>${project.build.directory}/local-repo</localRepositoryPath>
-          <pomIncludes>
-            <pomInclude>*/pom.xml</pomInclude>
-          </pomIncludes>
-          <addTestClassPath>true</addTestClassPath>
-          <streamLogsOnFailures>true</streamLogsOnFailures>
-          <!-- one settings.xml for all ITs: the encrypted server of the serverId IT (the invoker would hide any other -s) -->
-          <settingsFile>src/it/settings.xml</settingsFile>
-          <!--
-            Maven 4 fails the whole settings build when it cannot decrypt a legacy password, even in ITs that do not use
-            it; the legacy master password file must be named for every forked build (D-066 records why).
-          -->
-          <mavenOpts>-Dsettings.security=${project.basedir}/src/it/settings-security.xml</mavenOpts>
-          <preBuildHookScript>prebuild</preBuildHookScript>
-          <postBuildHookScript>verify</postBuildHookScript>
-          <environmentVariables>
-            <!-- ItSupport.ENV_TOKEN: the token source of the HTTPS ITs that use the environment -->
-            <GIT_PUBLISHER_TOKEN>it-env-token-8c1f2b</GIT_PUBLISHER_TOKEN>
-          </environmentVariables>
-        </configuration>
-        <executions>
-          <execution>
-            <id>integration-test</id>
-            <goals>
-              <goal>install</goal>
-              <goal>run</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
         <groupId>com.mycila</groupId>
         <artifactId>license-maven-plugin</artifactId>
         <version>${license-maven-plugin.version}</version>
@@ -317,12 +205,12 @@
           <strictCheck>true</strictCheck>
           <licenseSets>
             <licenseSet>
-              <header>${session.executionRootDirectory}/src/license/header.txt</header>
+              <header>${session.executionRootDirectory}/license-header.txt</header>
               <includes>
                 <include>**/src/**/*.java</include>
               </includes>
               <excludes>
-                <!-- sources of the user projects built by the plugin ITs -->
+                <!-- sources of the user projects built by the plugin ITs (maven-plugin/src/it) -->
                 <exclude>src/it/**</exclude>
               </excludes>
             </licenseSet>
@@ -340,4 +228,80 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!--
+      Release build (T32a, D-072, D-077). Not part of the normal build: no javadoc, no signing, no Central extension.
+      Steps, as in .github/workflows/release.yml: verify at the current version; set the release version (not committed);
+      ./mvnw -Prelease deploy -DskipTests -Dinvoker.skip=true. Signing reads MAVEN_GPG_KEY and MAVEN_GPG_PASSPHRASE (signer bc).
+      -Dcentral.skipUpload=true writes the bundle without uploading it. The workflow is the only place that uploads.
+      test-fixtures sets central.skipPublishing=true, so it is never in a bundle.
+    -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>${maven-source-plugin.version}</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>${maven-javadoc-plugin.version}</version>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>${maven-gpg-plugin.version}</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+                <configuration>
+                  <!--
+                    Pure Java signer (Bouncy Castle): no gpg executable, no gpg-agent, no keyring import. The armored key is
+                    read from env MAVEN_GPG_KEY and its passphrase from MAVEN_GPG_PASSPHRASE (D-077). Neither is written to disk.
+                  -->
+                  <signer>bc</signer>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>${central-publishing-maven-plugin.version}</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>false</autoPublish>
+              <skipUpload>${central.skipUpload}</skipUpload>
+              <skipPublishing>${central.skipPublishing}</skipPublishing>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

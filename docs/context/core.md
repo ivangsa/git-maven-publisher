@@ -1,6 +1,6 @@
 # Context pack: core
 
-**Location:** package `io.github.ivangsa.gitpublisher` in the single Maven project (D-037) · Java 17 · JGit + JDK only.
+**Location:** package `io.github.ivangsa.gitpublisher` in module `core/` (artifact `git-maven-publisher-core`, D-075) · Java 17 · JGit + JDK only.
 **No `org.apache.maven` or `org.gradle` imports** in core packages (architecture test). Maven libraries are allowed in test scope as oracles.
 
 ## Purpose
@@ -36,5 +36,5 @@ on lease failure: back-off, re-fetch, overlay replay, repeat.
 
 ## Files that matter
 `docs/design.md` §3–§8, `docs/decisions.md` D-003, D-005, D-020, D-025, D-027, D-031, D-032,
-`src/main/java/io/github/ivangsa/gitpublisher/`, test helpers in `src/test/java/io/github/ivangsa/gitpublisher/fixtures/`
+`core/src/main/java/io/github/ivangsa/gitpublisher/`, test helpers in `test-fixtures/src/main/java/io/github/ivangsa/gitpublisher/fixtures/`
 (see `docs/context/testing.md`).

@@ -1,7 +1,8 @@
 # Context pack: testing
 
-**Location:** the single Maven project (D-037): `pom.xml`, Maven Wrapper 3.10.x, CI in `.github/workflows/`.
-Harness in `src/test/java/io/github/ivangsa/gitpublisher/fixtures/`, golden files in `src/test/resources/golden/`, plugin ITs in `src/it/`.
+**Location:** the Maven reactor (D-075): `pom.xml`, Maven Wrapper 3.10.x, CI in `.github/workflows/`.
+Harness in `test-fixtures/src/main/java/io/github/ivangsa/gitpublisher/fixtures/` (self-tests in `test-fixtures/src/test`), golden files in
+`test-fixtures/src/main/resources/golden/`, plugin ITs in `maven-plugin/src/it/`. Core tests in `core/src/test`, Maven adapter tests in `maven-plugin/src/test`.
 JUnit 5, AssertJ, Jetty (only for JGit's HTTP server). `--release 17`. No Docker, no Testcontainers, no Reposilite (D-038).
 
 ## Purpose
@@ -31,10 +32,11 @@ checksum files present and matching; XML parses with Maven's reader. Branch has 
 
 ## Rules
 - Every harness helper has a self-test that proves it detects the failure it is meant to catch.
-- Tests: `*Test` (surefire), `*IT` (failsafe), invoker ITs in `src/it`. No `@Disabled`, no skipped tests.
+- Tests: `*Test` (surefire), `*IT` (failsafe), invoker ITs in `maven-plugin/src/it`. No `@Disabled`, no skipped tests.
 - Why no repository-manager oracle: in a Maven deploy the client computes metadata, the server only stores files.
-- Review tests under `src/test/.../review/` are never edited by implementers.
+- Review tests under `<module>/src/test/.../review/` are never edited by implementers.
+- `test-fixtures` has no dependency on core. Core reads golden files from `../test-fixtures/src/main/resources/golden` (MetadataModelTest).
 
 ## Files that matter
-`docs/design.md` §1 and §9, `pom.xml`, `src/test/java/io/github/ivangsa/gitpublisher/fixtures/`, `src/test/resources/golden/`,
+`docs/design.md` §1 and §9, `pom.xml`, `test-fixtures/src/main/java/io/github/ivangsa/gitpublisher/fixtures/`, `test-fixtures/src/main/resources/golden/`,
 `.github/workflows/`.

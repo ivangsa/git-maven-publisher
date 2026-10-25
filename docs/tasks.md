@@ -1,6 +1,6 @@
 # Tasks
 
-**Status:** Last finished: B13 (T29-T31) · Next: review after B13, then B14 (T32, blocked on Q4)
+**Status:** Phase 1 agent work done except T59 · Last finished: B14 (T32a) · Next: BP4 (T59 release flow, D-078); then T59b and T32b (maintainer)
 
 ## Batches
 
@@ -32,16 +32,21 @@ Plan revision 2026-10-24 (D-032..D-039): BR4, BP1 and BP2 run before B04; B05 (T
 | BR6 | [!] T21 via R15; R16, R17, R18 | implementer | core, testing | | done |
 | B11 | T23, T24 (T22 dropped, D-044) | implementer | core, testing | | done |
 | B12 | T25, T26, T27, T28 | implementer | maven-plugin | | done |
-| B13 | T29, T30, T31 | mechanic | maven-plugin | yes (end of Phase 1 code) | done (review pending) |
-| B14 | T32 | mechanic | maven-plugin | | blocked (Q4) |
-| B15 | T34, T35, T36, T37 | implementer | gradle-plugin | | blocked (Q10) |
+| B13 | T29, T30, T31 | mechanic | maven-plugin | yes (end of Phase 1 code) | done (reviewed 0701e5d: FIX FIRST) |
+| BR7 | [!] T20 via R19, [!] T26 via R22, [!] T31 via R21; R20 | implementer | core, maven-plugin, testing | | done |
+| BP3 | T58 (multi-module split, D-075) | mechanic | testing | | done |
+| B14 | T32a | mechanic | maven-plugin | | done |
+| BP4 | T59 (release flow like release-workflows, D-078) | mechanic | maven-plugin, testing | | todo |
+| manual | T59b | maintainer | - | | after T59; not dispatched to an agent |
+| manual | T32b | maintainer | - | | after T59b; not dispatched to an agent |
+| B15 | T34, T35, T36, T37 | implementer | gradle-plugin | | todo |
 | B16 | T38, T39, T40 | implementer | gradle-plugin, testing | | todo |
 | B17 | T41, T42 | implementer | gradle-plugin, testing | | todo |
 | B18 | T43, T44, T45 | mechanic | gradle-plugin | yes (end of Phase 2) | todo |
 | B19 | T47, T48 (retention) | implementer | core | yes (retention) | todo |
 | B20 | T49 | implementer | maven-plugin, gradle-plugin | | todo |
 | B21 | T50, T51, T52 | mechanic | testing | yes (end of Phase 3) | todo (T51 needs Q7) |
-| manual | T33 | maintainer | - | | blocked (Q2, Q9); not dispatched to an agent |
+| manual | T33 | maintainer | - | | after T32b (self-publication part after the repo is public, D-074); not dispatched to an agent |
 
 Legend: `[ ]` todo · `[x]` done · `[?]` blocked on a question in `docs/questions.md` · `[!]` failed review verification (see linked review).
 Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradlew -p gradle-plugin build` once it exists), per the done rule in AGENTS.md.
@@ -138,7 +143,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T19 Change recorder
   Diff `repo/` against `expectedSha` tree → added/modified paths.
   Done when: unit tests for add, modify, unchanged, nested paths, empty base.
-- [!] T20 Commit and push with lease (single attempt) ([review 2026-10-25-0701e5d](reviews/2026-10-25-0701e5d.md) F1, restore via R19)
+- [x] T20 Commit and push with lease (single attempt) (restored via R19)
   Parentless commit from `repo/`, message format, forced push with expected old id. Also moves `refs/publisher/tree` in the same push, without a lease on it (D-020, D-027).
   Done when: after N publishes the branch has exactly 1 commit; stale lease returns a lease-failure result; the second and later pushes send only the new objects. The branch exists without `refs/publisher/tree` (created by hand): the publish succeeds in one attempt and creates the tree ref. A rejected tree ref never fails or retries a publish (D-027).
 - [x] T21 Retry loop with independent replay (restored via R15)
@@ -157,7 +162,7 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T25 Maven plugin skeleton
   `deploy` mojo, all parameters from design §2, release guard, `skip`.
   Done when: plugin descriptor generated; unit tests for release guard and parameter defaults.
-- [!] T26 Reactor collector and trigger ([review 2026-10-25-0701e5d](reviews/2026-10-25-0701e5d.md) F4, restore via R22)
+- [x] T26 Reactor collector and trigger (restored via R22)
   Participants, check-in, configuration check and guarantee per design §2 (Maven) and D-034. Session-scoped collector, `-T` safe.
   Done when: invoker ITs: 3 modules (one `pom` packaging) produce exactly one commit, with `-T 4` too; a participant with `skip=true` still lets the others publish;
   a failing participant with `--fail-at-end` produces no push; `-pl` on one module publishes only it; mismatched `repository` between modules fails before checkout;
@@ -174,22 +179,41 @@ Every "Done when" assumes the full build passes (`./mvnw verify`, plus `./gradle
 - [x] T30 Property-only configuration
   Publish with `-Dgit-publisher.*` and no `<configuration>`.
   Done when: invoker IT passes.
-- [!] T31 Maven user docs ([review 2026-10-25-0701e5d](reviews/2026-10-25-0701e5d.md) F3, restore via R21)
+- [x] T31 Maven user docs (restored via R21)
   README: setup; the two authentication scenarios (self-publication with `GITHUB_TOKEN`; external users with a fine-grained PAT, expiry); serving the branch (raw.githubusercontent.com, Pages by hand with `nojekyll`, any static server);
   serialization precondition (all coordinates of a project, every workflow that can publish them, shared group-level plugin metadata) with an Actions `concurrency` snippet;
   reactor guarantee and the "separate publishing stage" recommendation; retention caveat and the accepted cache risk; GitHub hosting limits note.
-  Done when: every snippet in the README is copied from a passing IT.
-- [ ] T32 Release pipeline
-  Central publishing (sources, javadoc, signing) of the single `git-maven-publisher-maven-plugin` artifact, release workflow. (Needs Q4.)
-  Done when: a dry-run release produces signed bundles that pass Central validation.
+  Done when: every snippet in the README is copied from a file under `src/it` (POM, goal line, settings run by ITs); the workflow YAML is validated as a workflow by `actionlint` (T50) and the README says so (D-070).
+- [x] T58 Multi-module split (D-075)
+  Reactor parent `git-maven-publisher-parent`; modules `core/` (jar `git-maven-publisher-core`: package `io.github.ivangsa.gitpublisher` and its tests, the architecture test),
+  `maven-plugin/` (`git-maven-publisher-maven-plugin`: package `...gitpublisher.maven`, its tests, `src/it`), `test-fixtures/` (harness and golden files, not deployed and not in any Central bundle).
+  Review tests move with the classes they test, unchanged. Update design §1 and §2, AGENTS.md build line, README, CI and the context packs; Maven 3.10.x and 4.0 legs stay green.
+  Done when: `./mvnw verify` runs every test and invoker IT that passed before the split (same count or more, none skipped); no source remains in the root `src/`; CI green.
+- [x] T32a Release pipeline, local part (D-072, D-077)
+  Central publishing of `git-maven-publisher-parent`, `-core` and `-maven-plugin` (sources, javadoc, signatures, POM metadata Central requires) with `central-publishing-maven-plugin`, `autoPublish` false.
+  Release workflow on `workflow_dispatch` only, environment `maven-central-upload`, secrets `CENTRAL_USERNAME`, `CENTRAL_TOKEN`, `SIGN_KEY`, `SIGN_KEY_PASS`; reuse `zenwave360/release-workflows` `release-maven.yml` if its inputs fit, else a local workflow with the same secret names.
+  No other workflow references `maven-central-upload`. No agent dispatches the workflow, uploads to Central or uses the maintainer's key.
+  Done when: a local release build with `skipPublishing` and a throwaway GPG key generated for the check produces the bundle; a check verifies, for each published artifact, jar, sources, javadoc, POM, `.asc` signatures valid for that key and checksums, and the POM fields Central requires (name, description, url, licenses, developers, scm); the release workflow passes `actionlint`.
+- [ ] T59 Release flow like `zenwave360/release-workflows` (D-078)
+  Caller `release-from-notes.yml` for `release-maven.yml` pinned to a full SHA, named secrets; delete the interim `release.yml`. `maven-release-plugin` config per D-078;
+  `sign-maven-plugin` with `SIGN_KEY`/`SIGN_KEY_PASS` instead of the bc signer; JaCoCo `jacoco.csv` for `core` and `maven-plugin`; `release-notes/release-notes.v0.1.0.md`;
+  `publish-maven-snapshots.yml` caller (verify only). `test-fixtures` stays out of every bundle and of `release:prepare` deploys.
+  No agent dispatches a workflow, uploads to Central or uses the maintainer's key (D-072).
+  Done when: `actionlint` passes on every workflow; `./mvnw -B release:prepare -DdryRun=true -DreleaseVersion=0.1.0` passes; the T32a bundle check passes on a bundle signed by `sign-maven-plugin` with a throwaway key; `jacoco.csv` exists for both published jar modules after `./mvnw verify`; only `release-from-notes.yml` names `maven-central-upload`.
+- [ ] T59b Release prerequisites (manual, maintainer)
+  Create `develop` and the orphan `badges` branch; when the repository is public: `main` ruleset requiring PRs with no bypass, environment `maven-central-upload` with a required reviewer and deployment branches `main`, Actions workflow permissions read-only. Then AGENTS.md switches agents to `develop`.
+  Done when: the settings above are in place.
+- [ ] T32b First Central upload (manual, maintainer)
+  Dispatch `release-from-notes.yml` once with version 0.1.0; inspect the deployment in the Central portal; publish or drop it.
+  Done when: the Central portal validates the deployment.
 - [ ] T33 Dogfooding and Phase 1 exit (manual, maintainer)
-  After a usable bootstrap version exists: publish ZenWave360's snapshots with a PAT (Q2), and this project's own snapshots with `GITHUB_TOKEN` (Q9). Serving is set up by hand.
+  After T32b: publish ZenWave360's snapshots with the PAT (D-073), and, once the repository is public (D-074), this project's own snapshots with `GITHUB_TOKEN`. Serving is set up by hand.
   Done when: two weeks of ZenWave360 snapshots resolved from the published branch with no manual fixes.
 
 ## Phase 2: Gradle + KMP
 
 - [ ] T34 Gradle build skeleton
-  `gradle-plugin/` with wrapper, `java-gradle-plugin`, core reuse as decided in Q10, CI step, version sync check.
+  `gradle-plugin/` with wrapper, `java-gradle-plugin`, depends on `git-maven-publisher-core` from `mavenLocal()` after `./mvnw install` (D-075), CI step, version sync check.
   Done when: `./gradlew -p gradle-plugin build` passes locally and in CI.
 - [ ] T35 Extension and repository
   `gitMavenPublisher` extension (design §2), registers `gitPublisher` Maven repository.
@@ -318,19 +342,19 @@ Review tests live in `src/test/java/io/github/ivangsa/gitpublisher/review/` (R15
 From [review 2026-10-25-0701e5d](reviews/2026-10-25-0701e5d.md) (end of Phase 1 code, verdict FIX FIRST). All before B14.
 Review tests live in `src/test/java/io/github/ivangsa/gitpublisher/review/` (core package, as R15-R18).
 
-- [ ] R19 A refused tree hint must not fail the publication (major, F1)
+- [x] R19 A refused tree hint must not fail the publication (major, F1)
   Since the atomic push (D-060), a remote that refuses `refs/publisher/tree` refuses the branch too and the publication fails as a
   "permanent rejection". Keep "a failed publication moves no ref" without letting the hint fail the branch (for example a branch-only
   retry with the lease when the atomic push was refused for a reason other than the lease), or amend design §4.6, D-027 and T20 with a decision.
   Done when: `R19RejectedTreeHintTest` passes. Restore T20 after the full build passes.
-- [ ] R20 Decide the atomic fallback on JGit's condition, not on the URL (minor, F2)
+- [x] R20 Decide the atomic fallback on JGit's condition, not on the URL (minor, F2)
   Done when: both tests of `R20AtomicFallbackTest` pass.
-- [ ] R21 README snippets proven by ITs; settings and Maven 4 wording (minor, F3, F5)
+- [x] R21 README snippets proven by ITs; settings and Maven 4 wording (minor, F3, F5)
   Either the readme-workflow IT runs the `run:` command of `publish.yml` (repository and token source substituted), or a decision amends
   T31's "Done when" for workflow YAML (validated by T50) and the README says so. No test-only comment or test ciphertext presented as an example
   in the settings snippet; the `-Dsettings.security` sentence only claims what is shown.
   Done when: `ReadmeSnippetsTest` and the ITs pass with the chosen rule written in decisions. Restore T31 after the full build passes.
-- [ ] R22 Repository mismatch IT; design §2 matches the participant and configuration rules (minor, F4)
+- [x] R22 Repository mismatch IT; design §2 matches the participant and configuration rules (minor, F4)
   Invoker IT with a module that sets a different `<repository>`: build fails before checkout, nothing pushed. Design §2 describes the full
   settings comparison and the command-line rule of D-063.
   Done when: the IT passes and design §2 is updated. Restore T26 after the full build passes.

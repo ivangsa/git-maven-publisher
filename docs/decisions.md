@@ -353,6 +353,7 @@ Newest last. Format: date · decision · reason · alternatives rejected.
 - **Reason:** Maintainer decision: ZenWave's volume is small. The brief overstated both "never grows" and "never serves a broken mix".
 
 ## D-037 One Maven module with `maven-plugin` packaging
+- **Superseded by D-075:** the single-module layout. The reactor split is T58 (2026-10-25).
 - **Date:** 2026-10-24
 - **Decision:** One root Maven project, packaging `maven-plugin`, artifact `git-maven-publisher-maven-plugin`. Core logic in package
   `io.github.ivangsa.gitpublisher` with an architecture test forbidding `org.apache.maven`/`org.gradle` imports; Maven adapter in `...gitpublisher.maven`;
@@ -548,3 +549,102 @@ Newest last. Format: date · decision · reason · alternatives rejected.
 - **Date:** 2026-10-25
 - **Decision:** (T30) `src/it/property-only` has a plugin without `<configuration>`; the IT passes branch and checksum algorithm with `-Dgit-publisher.*` on the command line, the repository comes from `.mvn/maven.config` as in every IT. `ItSupport.assertPropertyOnlyPublication` checks the branch, the single commit and the configured checksum files only. (T31) The README's code blocks are copied from files under `src/it` (the POM of `property-only`, the goal line of its `invoker.properties`, `src/it/settings.xml`, and `.github/workflows/publish.yml` of the `readme-workflow` IT, which also carries the concurrency group and the separate `publish` job). `ReadmeSnippetsTest` fails when a fenced block is not a contiguous part of an IT file (a leading `mvn ` is ignored). The build command stays inline for that reason. The workflow file is inert in the IT; only actionlint (T50) checks it as YAML.
 - **Reason:** T30 and T31 "Done when". Plugin version in the example POMs is the literal `0.1.0-SNAPSHOT`, so a version bump needs the example POMs updated with the README. GitHub Pages limits checked against docs.github.com on 2026-10-25.
+
+## D-068 A refused tree hint never fails the branch (R19)
+- **Date:** 2026-10-25
+- **Decision:** `GitRemote.push` keeps the atomic push of D-060 (branch with lease plus hint). When the branch status of that push is a refusal (not OK, UP_TO_DATE, the lease failure or an incomplete report), it pushes the branch alone, non-atomically, with the same lease and force. That second status decides: OK is a success (the hint stays where it was), the lease failure is a lease failure, anything else is the permanent refusal of D-060. The hint is pushed again by the next publication. No ref moves for a publication whose branch update failed, as in R18.
+- **Reason:** Review 2026-10-25-0701e5d F1: an atomic push made a remote that refuses `refs/publisher/tree` refuse every publication, against D-027 and T20. Cost: one extra push, only when the first one is refused. Revises D-060 for this case; design section 4 step 5 amended.
+
+## D-069 Repository mismatch IT and design section 2 (R22)
+- **Date:** 2026-10-25
+- **Decision:** The invoker IT `config-mismatch-repository` gives module `b` a POM `<repository>` that differs from the command-line one; it asserts the build fails with the settings-differ message naming exactly `repository`, nothing is checked out and the bare repo is untouched. `config-mismatch` keeps its `branch` case. Design section 2 now states the two rules that D-063 added: the comparison covers every setting except `skip` and `allowReleases`, and with no project binding the goal every project of the session participates.
+- **Reason:** Review 2026-10-25-0701e5d F4: T26 names a repository mismatch and the binding design must describe the shipped behaviour (AGENTS.md precedence).
+
+
+## D-070 README workflow snippet and settings wording (R21)
+- **Date:** 2026-10-25
+- **Decision:** T31's "Done when" is amended: README snippets are copied from files under `src/it` (checked by `ReadmeSnippetsTest`); the POM, goal line and settings snippets are exercised by ITs, while the workflow YAML is validated as a workflow by `actionlint` in T50, whose "Done when" already requires the guide snippet to be the template. The README states this under the workflow. Running the `run:` command in the IT was not chosen: it needs the GitHub Actions context (`github.repository`, `github.token`) and `./mvnw`, which the IT cannot reproduce faithfully without substituting the very parts the snippet shows. The settings snippet loses the test-only comment (now "an encrypted token; replace it with your own"); the ciphertext stays because `token-server-id` decrypts it, and the README says it is an example value. The `-Dsettings.security` sentence now says only what D-066 observed: it is needed when the master password file is not at the default location, as in this plugin's ITs.
+- **Reason:** Review 2026-10-25-0701e5d F3 and F5.
+
+## D-071 The atomic fallback follows JGit's own error (R20)
+- **Date:** 2026-10-25
+- **Decision:** `GitRemote.push` falls back to the branch-only, non-atomic push only when the `TransportException` message is JGit's `atomicPushNotSupported` text (`JGitText`, localized), alone or after the `<url>: ` prefix that JGit adds. A word in the URL no longer matters: any other transport error propagates and is retried under the back-off budget (design section 4 step 3.vi). `JGitText` is a JGit internal class; the alternative (reading the advertised capabilities) needs a second connection.
+- **Reason:** Review 2026-10-25-0701e5d F2; D-060 left the fallback untested, `R20AtomicFallbackTest` now covers it against a real JGit HTTPS server.
+
+
+## D-072 Central organization ZenWave360; T32 split (answers Q4)
+- **Date:** 2026-10-25
+- **Decision:** Releases go to Maven Central under the maintainer's Central account (ivangsa@gmail.com), organization ZenWave360, namespace `io.github.ivangsa` (verified). The organization's free quota is shared with the ZenWave360 namespaces. GroupId stays `io.github.ivangsa`.
+  T32 is split. T32a (agent): release build and workflow, checked locally; no upload. T32b (maintainer): dispatches the first real upload, which waits in the Central portal until it is published by hand.
+  Secrets: environment `maven-central-upload` holds `CENTRAL_USERNAME`, `CENTRAL_TOKEN`, `SIGN_KEY`, `SIGN_KEY_PASS` (same names as `zenwave360/release-workflows`); no repository-level copies. Signing key `17B99A4248FBC02FA5DFF04A2CD85313E133BC68`, the same key that signs the ZenWave360 releases.
+  While the repository is private on GitHub Free the environment has no reviewer or branch policy. Therefore only the release workflow may reference `maven-central-upload`, it runs on `workflow_dispatch` only, and no agent dispatches it.
+- **Reason:** Maintainer answer. An environment without protection rules exposes its secrets to any workflow that names it.
+- **Rejected:** a separate Central organization; uploading to the portal from an agent task.
+
+## D-073 Snapshot repository for dogfooding (answers Q2)
+- **Date:** 2026-10-25
+- **Decision:** `zenwave360/maven-snapshots` exists and is public. The maintainer created the fine-grained PAT (`Contents: write`, that repository only) and stores it as `GIT_PUBLISHER_TOKEN` (environment secret) in the repositories that publish. T33 stays manual and starts after T32b.
+- **Reason:** Maintainer answer.
+
+## D-074 The repository stays private until the maintainer opens it (answers Q9)
+- **Date:** 2026-10-25
+- **Decision:** No agent changes the repository visibility. The maintainer makes it public. Self-publication of this project's snapshots (part of T33) waits until then.
+- **Reason:** Maintainer answer.
+
+## D-075 Multi-module layout: core, Maven plugin, Gradle plugin (answers Q10, revises D-037)
+- **Date:** 2026-10-25
+- **Decision:** The repository becomes a Maven reactor with modules `core/` (jar `git-maven-publisher-core`) and `maven-plugin/` (`git-maven-publisher-maven-plugin`, depends on core), plus an unpublished `test-fixtures/` module for the harness. The parent POM `git-maven-publisher-parent` is published too, because Central requires the parent of a published POM.
+  `gradle-plugin/` is a separate Gradle build (Plugin Portal, plugin marker, TestKit) that depends on `git-maven-publisher-core`; CI runs `./mvnw install` before `./gradlew -p gradle-plugin build`. The split happens now (T58), so the first release (T32) already has the final artifact layout.
+- **Reason:** Maintainer choice. A published core jar is how tools with both a Maven and a Gradle plugin are usually built (for example `jib-core`, `spotless-lib`). Compiling `../src/main/java` from Gradle (Q10 option b) works, but it duplicates the core's dependencies in two builds and hides the coupling.
+- **Rejected:** keeping the single artifact (D-037) with source sharing; building the Gradle plugin with Maven.
+- **Traceability:** T58 performs the split; T32a releases the three Maven artifacts; T34 consumes the core jar.
+
+## D-076 Reactor details of the split (T58)
+- **Date:** 2026-10-25
+- **Decision:**
+  - Root `pom.xml` is the parent `git-maven-publisher-parent` (packaging `pom`) with modules `test-fixtures`, `core`, `maven-plugin`. It owns versions, POM metadata, surefire/failsafe configuration and the license check. Each module declares its own production and harness dependencies.
+  - `test-fixtures` does not depend on core: none of its code imports a core class (the only mentions are in comments). Core and Maven tests use it at test scope, so the reactor has no cycle.
+  - `test-fixtures` sets `maven.deploy.skip=true`. Golden files are classpath resources in `test-fixtures/src/main/resources/golden`. `MetadataModelTest` (core) reads them through `../test-fixtures/src/main/resources/golden` in the source tree, with no copy.
+  - The reactor runs from the root, so `maven-invoker-plugin` `projectsDirectory` and `settingsFile` use `${project.basedir}`. `ReadmeSnippetsTest` reads `../README.md`.
+  - The license header template moves from `src/license/header.txt` to `license-header.txt` at the root, so that no `src/` remains at the root. `license/` was rejected because `LICENSE` already exists and the file system is case-insensitive on Windows.
+  - Moves use `git mv`, so file history follows the classes. Review tests moved unchanged with their classes (`core/src/test/.../review`, `maven-plugin/...`, `test-fixtures/src/test/.../fixtures/review`).
+  - Evidence (`./mvnw clean verify`, before and after): surefire 215 tests, 0 failures, 0 skipped before; after, 62 (test-fixtures) + 107 (core) + 46 (maven-plugin) = 215. Failsafe 4 before and after (`GitPublisherDifferentialIT`). Invoker ITs 13 passed before and after.
+- **Reason:** The split must keep the same test set and build from a clean checkout. Shared harness and golden files stay in one place, and nothing is copied or duplicated.
+- **Rejected:** `test-fixtures` depending on core (cycle); copying golden files into each module or into a temp directory per test; keeping source in the root `src/`.
+- **Revises:** D-037 layout only (see D-037 "Superseded by D-075").
+
+## D-077 Release pipeline, local part (T32a, under D-072)
+- **Date:** 2026-10-25
+- **Decision:**
+  - The release workflow is the repository's own `.github/workflows/release.yml`: `workflow_dispatch` only, `version` input (`X.Y.Z` or `X.Y.Z-rc.N`), environment `maven-central-upload`, secrets `CENTRAL_USERNAME`, `CENTRAL_TOKEN`, `SIGN_KEY`, `SIGN_KEY_PASS`, passed by name. It is the only file that names the environment.
+  - Steps: `./mvnw verify` at the current version (CI's build, invoker ITs included); `versions:set` to the release version (not committed, not tagged); `./mvnw -Prelease deploy -DskipTests -Dinvoker.skip=true`. Tests run once, at the snapshot version, because the invoker ITs pin the plugin version (`0.1.0-SNAPSHOT`), so they cannot run at a release version. Only the version string differs between the two builds.
+  - Profile `release` (root POM): sources, javadoc, `maven-gpg-plugin` (`signer` `bc`), `central-publishing-maven-plugin` 0.12.0 with `autoPublish` false. It is not part of the normal build.
+  - Signing is in-process: the armored key comes from env `MAVEN_GPG_KEY` (the `SIGN_KEY` secret), the passphrase from `MAVEN_GPG_PASSPHRASE`. No `gpg` executable, no keyring import on the runner.
+  - Plugin parameters: `skipUpload` (`-Dcentral.skipUpload=true`) writes the bundle without uploading. `skipPublishing` leaves a module's artifacts out of the bundle altogether; `test-fixtures` sets `central.skipPublishing=true` and is absent from every bundle. The task text says "skipPublishing" for the local build: `skipPublishing` alone would give an empty bundle, so the local build uses `skipUpload`.
+  - Each published POM (core, maven-plugin) declares name, description, url, licenses, developers and scm itself. The uploaded file is the raw POM, so inherited fields from the parent would not be in it.
+  - Check: `scripts/verify-central-bundle.py <bundle.zip> <version> <fingerprint> <gnupg-homedir>` (run with `-I`). It checks the exact file set per artifact, `.asc` against the given key, `.md5`/`.sha1` (and `.sha256`/`.sha512` when present), POM fields, jar contents, and that no `test-fixtures` entry exists.
+  - Evidence (this batch): local release build on a scratch copy at version `0.1.0` with a throwaway RSA-2048 key (generated in a short GnuPG home outside the repository, removed afterwards): `verify` passed (surefire 215, failsafe 4, invoker 13), deploy with `skipUpload` produced `central-bundle.zip` with 9 files (parent pom; core jar, sources, javadoc, pom; maven-plugin jar, sources, javadoc, pom), and the checker printed PASS. A bundle checked with another key failed.
+  - The workflow does not commit, tag, create a GitHub release or sync a develop branch. Those steps are not in T32a; T32b decides them (see docs/questions.md).
+- **Reason:** Maintainer's D-072 limits: the release workflow is the only uploader, no agent dispatches it, and no GPG key or secret is read by an agent. The steps above are the smallest flow that yields the bundle checked here.
+- **Rejected:**
+  - Calling `zenwave360/release-workflows/.github/workflows/release-maven.yml`. Its inputs fit, but its job graph needs a `develop` branch (sync-develop), a `badges` branch and JaCoCo CSVs (publish-coverage-badges, which runs after the upload), and it expects the key already imported, which it does not do. This repository has none of the first two, so the reusable would fail after the upload.
+  - `maven-gpg-plugin` with the default `gpg` signer on Windows: the `gpg-agent` it launches could not start with a Windows home directory (checked in this batch).
+  - `crazy-max/ghaction-import-gpg` (used by the maintainer's playground workflow): needs a `gpg` binary and a keyring, which `signer` `bc` avoids.
+  - Version properties in the invoker IT POMs: the README snippet test (`ReadmeSnippetsTest`) requires README snippets to be copied from the ITs, so the README would change too.
+- **Note (T32a, same batch):** the full build failed once on `PublisherParametersTest.theDefaultCommitAuthorIsTheDocumentedOne`, which compared two `PersonIdent`s created a second apart (`PersonIdent.equals` includes the instant). The assertion now compares name and email, the documented identity of the default author. Production code is unchanged.
+
+## D-078 Release flow follows `zenwave360/release-workflows` (answers Q11, revises D-077)
+- **Date:** 2026-10-25
+- **Decision:** Releases use the maintainer's standard pipeline: a thin caller `.github/workflows/release-from-notes.yml` calls `zenwave360/release-workflows/.github/workflows/release-maven.yml`, pinned to a full commit SHA, with named secrets (never `secrets: inherit`).
+  The pipeline runs validate, `release:prepare` (PR to `main`, tag `v<version>`), deploy to Central (`autoPublish` false), GitHub release, and sync of `develop`. It replaces the interim `release.yml` from T32a, so one workflow still names `maven-central-upload`.
+  The repository adapts to the pipeline, not the other way round:
+  - `maven-release-plugin` with `pushChanges=false`, `tagNameFormat=v@{project.version}`, `autoVersionSubmodules=true`;
+  - signing with `sign-maven-plugin` reading `SIGN_KEY`/`SIGN_KEY_PASS`, as in the ZenWave360 POMs (the bc signer of `maven-gpg-plugin` reads other variable names);
+  - JaCoCo `jacoco.csv` per published module;
+  - `release-notes/release-notes.v<version>.md`;
+  - an orphan `badges` branch and a `develop` branch;
+  - a `publish-maven-snapshots.yml` caller for the post-release dispatch (verify only until self-publication, D-074).
+  Branch model: once `main` requires PRs (T59b), agents commit and push to `develop`; `main` changes only through release PRs. AGENTS.md changes in T59b, not before.
+- **Reason:** Maintainer request: one release flow for all their libraries. The T32a note that the reusable workflow "does not import the signing key" holds only for `maven-gpg-plugin`; `sign-maven-plugin` reads the variables the pipeline sets.
+- **Constraint:** while the repository is private on GitHub Free, the environment reviewer, deployment branch policy and the `main` ruleset are unavailable. The pipeline runs, but its security model is complete only after the repository is public (D-074).
+- **Traceability:** T59 (agent) adapts the build and workflows; T59b (maintainer) sets up branches, ruleset and environment rules; T32b then dispatches the first release through this flow.
